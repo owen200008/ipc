@@ -67,6 +67,7 @@ public:
 
     //weight
     volatile uint32_t                           m_nWeight = 0;
+    IPCVector<TcpSocket*>                       m_vtDeathSocket;
     IPCVector<TcpSocket*>                       m_vtRevertSocket;
     IPCVector<TcpSocket*>                       m_vtCloseSocket;
     IPCVector<TcpSocket*>                       m_vtAllocateSocket;

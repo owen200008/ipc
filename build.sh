@@ -13,7 +13,7 @@ echo installing zipc to $INSTALL_PREFIX
 
 BUILD_UNIT_TEST_OPT=""
 BUILD_BENCHMARK_OPT=""
-THIRD_PARTY_HOME=`pwd`/../../ccbasic/3rd/libevent
+THIRD_PARTY_HOME=${INSTALL_PREFIX}
 BUILD_TYPE="Debug"
 
 

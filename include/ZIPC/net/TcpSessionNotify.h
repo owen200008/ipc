@@ -87,6 +87,9 @@ public:
     //! safe to delete shared_ptr when £¨close return true or after disconnect callback£©  
     bool Close();
 
+    virtual int32_t Send(char *pData, int32_t cbData, uint32_t dwFlag = 0);
+    virtual int32_t Send(std::shared_ptr<char> pData, int32_t cbData, uint32_t dwFlag = 0);
+
     //! 
     bool IsConnected();
 

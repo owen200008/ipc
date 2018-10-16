@@ -13,11 +13,29 @@ __NS_ZILLIZ_IPC_START
 //////////////////////////////////////////////////////////////////////////
 class NetThread;
 class NetSessionNotify;
+
+//////////////////////////////////////////////////////////////////////////
+#define TIL_SS_IDLE						0x00		//
+#define TIL_SS_CONNECTING				0x01		//
+#define TIL_SS_CONNECTED				0x02		//
+#define TIL_SS_LISTENING				0x03		//
+
+#define TIL_SS_SHAKEHANDLE_IDLE		    0x00		//
+#define TIL_SS_SHAKEHANDLE_TRANSMIT		0x01		//
 //////////////////////////////////////////////////////////////////////////
 struct SocketSendBuf {
     std::shared_ptr<char>               m_pBuffer;
-    uint32_t                            m_nLength = 0;
-    uint32_t                            m_nReadLength = 0;
+    int32_t                             m_nLength = 0;
+    int32_t                             m_nReadLength = 0;
+    SocketSendBuf(const char* pBuf, int32_t nLength) {
+        m_pBuffer = std::make_shared<char>(new char[nLength]);
+        memcpy(m_pBuffer.get(), pBuf, nLength);
+        m_nLength = nLength;
+    }
+    SocketSendBuf(const std::shared_ptr<char> pBuf, int32_t nLength) {
+        m_pBuffer = pBuf;
+        m_nLength = nLength;
+    }
 };
 //////////////////////////////////////////////////////////////////////////
 #ifndef INVALID_SOCKET
@@ -38,25 +56,25 @@ public:
     //!
     bool IsTransmit();
 protected:
-    //!
-    uint32_t GetSessionStatus(uint32_t dwMask) { return m_unSessionStatus & dwMask; }
-    //!
-    void SetSessionStatus(uint32_t dwValue, uint32_t dwMask) { m_unSessionStatus &= ~dwMask; m_unSessionStatus |= (dwValue & dwMask); }
-
-    uint32_t					    m_unSessionStatus = 0;
+    //better way to set the volatile
+    uint8_t                                 m_statTransmit = TIL_SS_SHAKEHANDLE_IDLE;
+    uint8_t                                 m_statLink = TIL_SS_IDLE;
+    bool                                    m_bDeath = false;
 public:
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //inner netthread call
     //! need init socket
-    static int32_t AssignConnect(std::shared_ptr<NetSessionNotify>& pSession, const sockaddr_storage& addr, int addrlen);
+    void InitTcpSocket(std::shared_ptr<NetSessionNotify>& pSession);
+
+    //! 
+    int32_t Connect(const sockaddr_storage& addr, int addrlen);
 
     //int32_t Listen();
     //!
     int32_t Close();
 protected:
-    void InitTcpSocket(evutil_socket_t fd, std::shared_ptr<NetSessionNotify>& pSession);
-    //! 
-    int32_t Connect(std::shared_ptr<NetSessionNotify>& pSession, const sockaddr_storage& addr, int addrlen);
+    
+    
 
 protected:
     void OnReadEvent();

@@ -85,6 +85,7 @@ bool NetSessionNotify::Close(){
     }
     std::promise<int32_t> promiseObj;
     auto future = promiseObj.get_future();
+    
     GotoNetThread([](std::shared_ptr<NetSessionNotify>& pSession, TcpSocket* pSocket, intptr_t lRevert) {
         std::promise<int32_t>* pRevert = (std::promise<int32_t>*)lRevert;
         pRevert->set_value(pSocket->Close());
@@ -92,19 +93,27 @@ bool NetSessionNotify::Close(){
     return future.get() == BASIC_NET_OK;
 }
 
+int32_t NetSessionNotify::Send(char *pData, int32_t cbData, uint32_t dwFlag) {
+    if (!m_pSocket) {
+        return BASIC_NET_SOCKET_NOEXIST;
+    }
+    SocketSendBuf sendBuf(pData, cbData);
+    GotoNetThread([](std::shared_ptr<NetSessionNotify>& pSession, TcpSocket* pSocket, intptr_t lRevert) {
+        if (pSocket) {
+            pSocket->Send();
+        }
+        
+    });
+}
+int32_t NetSessionNotify::Send(std::shared_ptr<char> pData, int32_t cbData, uint32_t dwFlag) {
+    SocketSendBuf sendBuf(pData, cbData);
+}
+
 //!
 void NetSessionNotify::InitSocket(TcpSocket* pSocket) {
     m_pSocket = pSocket;
 }
-//////////////////////////////////////////////////////////////////////////////////////////////////
-//!
 
-int32_t NetSessionNotify::Send(void *pData, int32_t cbData){
-    /*if(cbData <= 0)
-        return 0;
-    return m_pSocket ? m_pSocket->Send(pData, cbData) : 0;*/
-    return 0;
-}
 //////////////////////////////////////////////////////////////////////////////////////////////////
 //! change to netthread
 void NetSessionNotify::GotoNetThread(pNetThreadCallback pCallback, intptr_t lRevert) {

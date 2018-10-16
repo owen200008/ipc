@@ -8,7 +8,10 @@ __NS_ZILLIZ_IPC_START
 NetThread::NetThread(){
     m_vtEvent.reserve(256);
     m_vtEventRun.reserve(256);
+    m_vtDeathSocket.reserve(256);
     m_vtCloseSocket.reserve(256);
+    m_vtRevertSocket.reserve(256);
+    m_vtAllocateSocket.reserve(256);
 }
 
 NetThread::~NetThread(){
@@ -69,6 +72,7 @@ void NetThread::EventLoop(){
 
 //!
 void NetThread::SetEvent(NetThreadEvent& setEvent){
+    //may be loop if call on same thread
     /*if(std::this_thread::get_id() == m_thread_worker_ptr->get_id()){
         setEvent.m_callback(setEvent.m_pSession, setEvent.m_lRevert);
         return;
@@ -94,12 +98,18 @@ void NetThread::RunMessageQueue(){
         swap(m_vtEvent, m_vtEventRun);
     }
     for (auto& setEvent : m_vtEventRun) {
-        setEvent.m_callback(setEvent.m_pSession, setEvent.m_pSession->GetTcpSocket(), setEvent.m_lRevert);
+        auto pSocket = setEvent.m_pSession->GetTcpSocket();
+        if (pSocket == nullptr) {
+            pSocket = AssignTcpSocket();
+            pSocket->InitTcpSocket(setEvent.m_pSession);
+        }
+        setEvent.m_callback(setEvent.m_pSession, pSocket, setEvent.m_lRevert);
     }
 }
 
 void NetThread::ReleaseTcpSocket(TcpSocket* p) {
-    m_vtRevertSocket.push_back(p);
+    //first set to death
+    m_vtDeathSocket.push_back(p);
 }
 TcpSocket* NetThread::AssignTcpSocket() {
     if (m_vtRevertSocket.size() > 0) {

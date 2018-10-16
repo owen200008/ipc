@@ -22,7 +22,19 @@ macro(source_group_by_dir source_files)
     endif(MSVC)
 endmacro(source_group_by_dir)
 
+#build event
+set(EVENT__DISABLE_SAMPLES ON CACHE BOOL "flags")
+set(EVENT__DISABLE_REGRESS ON CACHE BOOL "flags")
+set(EVENT__DISABLE_TESTS ON CACHE BOOL "flags")
+set(EVENT__DISABLE_THREAD_SUPPORT ON CACHE BOOL "flags")
+set(EVENT__DISABLE_OPENSSL ON CACHE BOOL "flags")
+set(EVENT__DISABLE_BENCHMARK ON CACHE BOOL "flags")
+set(EVENT__DISABLE_CLOCK_GETTIME ON CACHE BOOL "flags")
+set(EVENT__DISABLE_DEBUG_MODE ON CACHE BOOL "flags")
+set(EVENT__BUILD_SHARED_LIBRARIES ${BASICLIB_BUILD_SHARED})
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../3rd/libevent libevent)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../3rd/libevent/include)
+include_directories(${PROJECT_BINARY_DIR}/src/libevent/include)
 
 set(base_src
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/base/inc/IPCDefine.h
@@ -43,8 +55,8 @@ set(base_src
     ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/base/mt/Mutex.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/base/mt/Mutex.h
 
-    ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/base/sys/SysInfo.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/base/sys/SysInfo.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/base/sys/sysinfo.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/base/sys/sysinfo.h
 )
 
 set(net_src
@@ -57,10 +69,6 @@ set(net_src
 
     ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/TcpSessionNotify.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/net/TcpSessionNotify.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/TcpClient.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/net/TcpClient.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/TcpServer.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/net/TcpServer.h
 
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/net/TcpDefine.h
 )
@@ -74,5 +82,5 @@ add_library(zipc STATIC
 )
 
 set_target_properties(zipc PROPERTIES LINKER_LANGUAGE CXX)
-target_link_libraries(zipc)
+target_link_libraries(zipc event_static)
 

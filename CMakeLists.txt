@@ -14,19 +14,10 @@ set(ZIPC_LIBRARY_INCLUDE ${PROJECT_SOURCE_DIR}/include)
 set(ZIPC_LIBRARY_SRC ${PROJECT_SOURCE_DIR}/src)
 
 
-if ("${THIRD_PARTY_HOME}" STREQUAL "")
-    message(FATAL_ERROR "Could not find the third party.")
-else()
-    set(THIRD_PARTY_INCLUDE ${THIRD_PARTY_HOME}/include)
-    set(THIRD_PARTY_LIB ${THIRD_PARTY_HOME}/lib)
-endif()
-
 include_directories(${ZIPC_LIBRARY_INCLUDE})
 include_directories(${ZIPC_LIBRARY_SRC})
-include_directories(${THIRD_PARTY_INCLUDE})
-link_directories(${THIRD_PARTY_LIB})
 
-add_subdirectory(src)
+add_subdirectory(${PROJECT_SOURCE_DIR}/src src)
 
 if (BUILD_UNIT_TEST)
 	add_subdirectory(unittest)

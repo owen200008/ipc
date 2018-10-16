@@ -19,16 +19,16 @@ TcpSocket::~TcpSocket() {
 }
 
 bool TcpSocket::IsConnected() {
-    return GetSessionStatus(TIL_SS_LINK) == TIL_SS_CONNECTED;
+    return m_statLink == TIL_SS_CONNECTED;
 }
 
 bool TcpSocket::IsTransmit() {
-    return GetSessionStatus(TIL_SS_SHAKEHANDLE_MASK) == TIL_SS_SHAKEHANDLE_TRANSMIT;
+    return m_statTransmit == TIL_SS_SHAKEHANDLE_TRANSMIT;
 }
 
 //! 
 bool TcpSocket::CanClose() {
-    if (GetSessionStatus(TIL_SS_LINK) != TIL_SS_CONNECTING) {
+    if (m_statLink != TIL_SS_CONNECTING) {
         if (m_vtSocketBuf.size() == 0 && m_nReadySendBufferLength == 0)
             return true;
         return !IsConnected();
@@ -36,21 +36,16 @@ bool TcpSocket::CanClose() {
     return false;
 }
 ///////////////////////////////////////////////////////////////////////////////
-void TcpSocket::InitTcpSocket(evutil_socket_t fd, std::shared_ptr<NetSessionNotify>& pSession) {
-    m_socketfd = fd;
+void TcpSocket::InitTcpSocket(std::shared_ptr<NetSessionNotify>& pSession) {
     m_pNotify = pSession;
     pSession->InitSocket(this);
 }
 
-int32_t TcpSocket::AssignConnect(std::shared_ptr<NetSessionNotify>& pSession, const sockaddr_storage& addr, int addrlen) {
-    return pSession->GetNetThread()->AssignTcpSocket()->Connect(pSession, addr, addrlen);
-}
-
-int32_t TcpSocket::Connect(std::shared_ptr<NetSessionNotify>& pSession, const sockaddr_storage& addr, int addrlen) {
-    uint32_t dwLinkNetStatus = GetSessionStatus(TIL_SS_LINK);
-    if (dwLinkNetStatus != TIL_SS_IDLE) {
+int32_t TcpSocket::Connect(const sockaddr_storage& addr, int addrlen) {
+    uint8_t statLink = m_statLink;
+    if (statLink != TIL_SS_IDLE) {
         int32_t lRet = BASIC_NET_GENERIC_ERROR;
-        switch (dwLinkNetStatus) {
+        switch (statLink) {
         case TIL_SS_CONNECTING: {
             lRet = BASIC_NET_CONNECTING_ERROR;
             break;
@@ -75,8 +70,7 @@ int32_t TcpSocket::Connect(std::shared_ptr<NetSessionNotify>& pSession, const so
         evutil_make_listen_socket_reuseable_port(socketfd);
         int nRet = connect(socketfd, (::sockaddr*)&addr, addrlen);
         if (nRet == 0) {
-            //bind
-            InitTcpSocket(socketfd, pSession);
+            m_socketfd = socketfd;
             //event
             event_set(&m_revent, socketfd, EV_READ | EV_PERSIST, OnLinkRead, this);
             event_base_set(m_pThread->m_base, &m_revent);
@@ -92,9 +86,9 @@ int32_t TcpSocket::Connect(std::shared_ptr<NetSessionNotify>& pSession, const so
 #else
         else if (errno == EINPROGRESS) {
 #endif
-            InitTcpSocket(socketfd, pSession);
-
-            SetSessionStatus(TIL_SS_CONNECTING, TIL_SS_LINK);
+            m_socketfd = socketfd;
+            //wait for write onconnect
+            m_statLink = TIL_SS_CONNECTING;
             event_set(&m_revent, socketfd, EV_READ | EV_PERSIST, OnLinkRead, this);
             event_base_set(m_pThread->m_base, &m_revent);
             event_set(&m_wevent, socketfd, EV_WRITE, OnLinkWrite, this);
@@ -111,9 +105,6 @@ int32_t TcpSocket::Connect(std::shared_ptr<NetSessionNotify>& pSession, const so
     if (lReturn != BASIC_NET_OK && socketfd != INVALID_SOCKET) {
         evutil_closesocket(socketfd);
         m_socketfd = INVALID_SOCKET;
-        m_unSessionStatus = 0;
-        //return TcpSocket
-        m_pThread->ReleaseTcpSocket(this);
     }
     
     return BASIC_NET_OK;
@@ -170,8 +161,7 @@ void TcpSocket::OnReadEvent() {
 
 
 void TcpSocket::OnWriteEvent() {
-    uint32_t dwStatus = GetSessionStatus(TIL_SS_LINK);
-    if (dwStatus == TIL_SS_CONNECTING) {
+    if (m_statLink == TIL_SS_CONNECTING) {
         int nErr = 0;
         socklen_t nLen = sizeof(nErr);
         getsockopt(m_socketfd, SOL_SOCKET, SO_ERROR, (char *)&nErr, &nLen);
@@ -190,12 +180,12 @@ void TcpSocket::OnWriteEvent() {
 
 void TcpSocket::OnConnect() {
     uint32_t dwNetCode = BASIC_NETCODE_SUCC;
-    SetSessionStatus(TIL_SS_CONNECTED, TIL_SS_LINK);
+    m_statLink = TIL_SS_CONNECTED;
     int32_t lRet = m_pNotify->OnConnect(dwNetCode);
 
     //
     if (lRet == BASIC_NET_OK) {
-        SetSessionStatus(TIL_SS_SHAKEHANDLE_TRANSMIT, TIL_SS_SHAKEHANDLE_MASK);
+        m_statTransmit = TIL_SS_SHAKEHANDLE_TRANSMIT;
     }
     else if (lRet == BASIC_NET_GENERIC_ERROR) {
         OnClose();
@@ -206,7 +196,7 @@ uint32_t TcpSocket::OnReceive(uint32_t dwNetCode, const char *pszData, int32_t c
     int32_t lRet = m_pNotify->OnReceive(dwNetCode, pszData, cbData);
     //
     if ((lRet & BASIC_NET_HR_RET_HANDSHAKE) && !(lRet & NET_ERROR)) {
-        SetSessionStatus(TIL_SS_SHAKEHANDLE_TRANSMIT, TIL_SS_SHAKEHANDLE_MASK);
+        m_statTransmit = TIL_SS_SHAKEHANDLE_TRANSMIT;
     }
     return lRet;
 }
@@ -305,18 +295,13 @@ bool TcpSocket::OnClose(bool bRemote) {
 
         evutil_closesocket(m_socketfd);
         m_socketfd = INVALID_SOCKET;
-        m_unSessionStatus = 0;
+        m_statTransmit = TIL_SS_SHAKEHANDLE_IDLE;
+        m_statLink = TIL_SS_IDLE;
         IPCQueue<SocketSendBuf> queuetmp;
         swap(queuetmp, m_vtSocketBuf);
         m_nReadySendBufferLength = 0;
 
         OnDisconnect(bRemote ? BASIC_NETCODE_CLOSE_REMOTE : 0);
-
-        m_pNotify->InitSocket(nullptr);
-        m_pNotify = nullptr;
-
-        //return TcpSocket
-        m_pThread->ReleaseTcpSocket(this);
         return true;
     }
     return false;
