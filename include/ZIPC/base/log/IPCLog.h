@@ -33,36 +33,14 @@ public:
 	template<class... _Types>
 	void Log(IPCLogType type, const char* pszLog, _Types&&... _Args){
 		char tmp[LOG_MESSAGE_SIZE];
-		if(!LogFormat(tmp, LOG_MESSAGE_SIZE, type, pszLog, std::forward<_Types>(_Args)...)){
-			for(auto i = 0;i < 10;i++){
-				char* pBuf = malloc(LOG_MESSAGE_SIZE * pow(2, i + 1));
-				if(pBuf){
-					if(!LogFormat(tmp, LOG_MESSAGE_SIZE, type, pszLog, std::forward<_Types>(_Args)...)){
-						continue;
-					}
-					free(pBuf);
-				}
-				break;
-			}
-		}
+        ccsnprintf(szBuf, LOG_MESSAGE_SIZE, pLog, std::forward<_Types>(_Args)...);
+        Log(type, tmp);
 	}
 
 	void Log(IPCLogType type, const char* pszLog){
 		if(nullptr != m_logFunc){
 			m_logFunc(type, pszLog);
 		}
-	}
-protected:
-	bool LogFormat(char* pBuf, int nLength, IPCLogType type, const char* pszLog, ...){
-		va_list argList;
-		va_start(argList, pszLog);
-		int len = snprintf(pBuf, nLength, pszLog, argList);
-		va_end(argList);
-		bool bRet = len >=0 && len < nLength;
-		if(bRet && nullptr != m_logFunc){
-			m_logFunc(type, pBuf);
-		}
-		return bRet;
 	}
 protected:
 	std::function<void(IPCLogType, const char*)> m_logFunc;

@@ -9,7 +9,7 @@ NetThread::NetThread(){
     m_vtEvent.reserve(256);
     m_vtEventRun.reserve(256);
     m_vtDeathSocket.reserve(256);
-    m_vtCloseSocket.reserve(256);
+    m_vtDeathSocketRun.reserve(256);
     m_vtRevertSocket.reserve(256);
     m_vtAllocateSocket.reserve(256);
 }
@@ -81,7 +81,7 @@ void NetThread::SetEvent(NetThreadEvent& setEvent){
     {
         CSpinLockFunc lock(&m_lockEvent, true);
         nSize = m_vtEvent.size();
-        m_vtEvent.push_back(setEvent);
+        m_vtEvent.push_back(std::move(setEvent));
     }
     if(nSize == 0){
         send(m_pair[1], "", 1, 0);
@@ -109,9 +109,24 @@ void NetThread::RunMessageQueue(){
 
 void NetThread::ReleaseTcpSocket(TcpSocket* p) {
     //first set to death
+    CSpinLockFunc lock(&m_lockEvent, true);
     m_vtDeathSocket.push_back(p);
+    lock.UnLock();
+    if (!m_bHasDeathSocket) {
+        m_bHasDeathSocket = true;
+    }
 }
 TcpSocket* NetThread::AssignTcpSocket() {
+    if (m_bHasDeathSocket) {
+        CSpinLockFunc lock(&m_lockEvent, true);
+        swap(m_vtDeathSocketRun, m_vtDeathSocket);
+        lock.UnLock();
+        m_bHasDeathSocket = false;
+        for (auto p : m_vtDeathSocketRun) {
+            m_vtRevertSocket.push_back(p);
+        }
+        m_vtDeathSocketRun.clear();
+    }
     if (m_vtRevertSocket.size() > 0) {
         TcpSocket* p = *m_vtRevertSocket.rbegin();
         m_vtRevertSocket.pop_back();

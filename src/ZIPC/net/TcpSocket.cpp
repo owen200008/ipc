@@ -111,6 +111,12 @@ int32_t TcpSocket::Connect(const sockaddr_storage& addr, int addrlen) {
 }
 
 //!
+void TcpSocket::Send(SocketSendBuf* pBuf) {
+    m_vtSocketBuf.push_back(pBuf);
+    SendDataFromQueue();
+}
+
+//!
 int32_t TcpSocket::Close() {
     if (m_socketfd == INVALID_SOCKET)
         return BASIC_NET_OK;
@@ -213,22 +219,34 @@ bool TcpSocket::ReadBuffer(int16_t lSend) {
         int16_t nRevert = READBUFFERSIZE_MSG;
         while (m_vtSocketBuf.size() > 0 && nRevert > 0) {
             auto& data = m_vtSocketBuf.front();
-            uint32_t nDataLength = data.m_nLength - data.m_nReadLength;
+            int32_t nDataLength = data->m_nLength - data->m_nReadLength;
             if (nDataLength > nRevert) {
-                data.m_nReadLength += nRevert;
+                if(data->m_bShared)
+                    memcpy(m_szReadySendBuffer, &data->m_pBuffer.get()[data->m_nReadLength], nRevert);
+                else
+                    memcpy(m_szReadySendBuffer, &data->m_cRevertData[data->m_nReadLength], nRevert);
+                data->m_nReadLength += nRevert;
                 nRevert = 0;
-                memcpy(m_szReadySendBuffer, &data.m_pBuffer.get()[data.m_nReadLength], nRevert);
                 break;
             }
             else if (nDataLength == nRevert) {
+                if (data->m_bShared)
+                    memcpy(m_szReadySendBuffer, &data->m_pBuffer.get()[data->m_nReadLength], nRevert);
+                else
+                    memcpy(m_szReadySendBuffer, &data->m_cRevertData[data->m_nReadLength], nRevert);
+                m_vtSocketBuf.pop_back();
+                SocketSendBuf::DeleteSocketSendBuf(data);
                 nRevert = 0;
-                memcpy(m_szReadySendBuffer, &data.m_pBuffer.get()[data.m_nReadLength], nRevert);
-                m_vtSocketBuf.pop();
                 break;
             }
             else {
+                if (data->m_bShared)
+                    memcpy(m_szReadySendBuffer, &data->m_pBuffer.get()[data->m_nReadLength], nDataLength);
+                else
+                    memcpy(m_szReadySendBuffer, &data->m_cRevertData[data->m_nReadLength], nDataLength);
                 nRevert -= nDataLength;
-                m_vtSocketBuf.pop();
+                m_vtSocketBuf.pop_back();
+                SocketSendBuf::DeleteSocketSendBuf(data);
             }
         }
         m_nReadySendBufferLength = READBUFFERSIZE_MSG - nRevert;
@@ -297,8 +315,11 @@ bool TcpSocket::OnClose(bool bRemote) {
         m_socketfd = INVALID_SOCKET;
         m_statTransmit = TIL_SS_SHAKEHANDLE_IDLE;
         m_statLink = TIL_SS_IDLE;
-        IPCQueue<SocketSendBuf> queuetmp;
+        IPCVector<SocketSendBuf*> queuetmp;
         swap(queuetmp, m_vtSocketBuf);
+        for (auto p : queuetmp) {
+            SocketSendBuf::DeleteSocketSendBuf(p);
+        }
         m_nReadySendBufferLength = 0;
 
         OnDisconnect(bRemote ? BASIC_NETCODE_CLOSE_REMOTE : 0);

@@ -57,6 +57,9 @@ NetSessionNotify::NetSessionNotify(){
 }
 
 NetSessionNotify::~NetSessionNotify(){
+    if (m_pSocket) {
+        //m_pNetThread->Re
+    }
 }
 
 void NetSessionNotify::GetNetStatInfo(BasicNetStat& netState) {
@@ -93,20 +96,20 @@ bool NetSessionNotify::Close(){
     return future.get() == BASIC_NET_OK;
 }
 
-int32_t NetSessionNotify::Send(char *pData, int32_t cbData, uint32_t dwFlag) {
+int32_t NetSessionNotify::Send(char *pData, int32_t cbData) {
     if (!m_pSocket) {
         return BASIC_NET_SOCKET_NOEXIST;
     }
-    SocketSendBuf sendBuf(pData, cbData);
     GotoNetThread([](std::shared_ptr<NetSessionNotify>& pSession, TcpSocket* pSocket, intptr_t lRevert) {
-        if (pSocket) {
-            pSocket->Send();
-        }
-        
-    });
+        pSocket->Send((SocketSendBuf*)lRevert);
+    }, (intptr_t)SocketSendBuf::CreateSocketSendBuf(pData, cbData));
+    return BASIC_NET_OK;
 }
-int32_t NetSessionNotify::Send(std::shared_ptr<char> pData, int32_t cbData, uint32_t dwFlag) {
-    SocketSendBuf sendBuf(pData, cbData);
+int32_t NetSessionNotify::Send(std::shared_ptr<char> pData, int32_t cbData) {
+    GotoNetThread([](std::shared_ptr<NetSessionNotify>& pSession, TcpSocket* pSocket, intptr_t lRevert) {
+        pSocket->Send((SocketSendBuf*)lRevert);
+    }, (intptr_t)SocketSendBuf::CreateSocketSendBuf(pData, cbData));
+    return BASIC_NET_OK;
 }
 
 //!

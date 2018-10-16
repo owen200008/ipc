@@ -20,14 +20,20 @@
 
 #ifdef _MSC_VER
 #define CCSwitchToThread() SwitchToThread();
+#define ccsnprintf sprintf_s
 #else
 #include <emmintrin.h>
 #include <thread>
 #define CCSwitchToThread() std::this_thread::yield();
+#define ccsnprintf snprintf
 #endif
 
+typedef void*(*pIPCMalloc)(size_t);
+typedef void(*pIPCFree)(void*);
 
 #define IPCVector           std::vector
 #define IPCMap              std::unordered_map
 #define IPCQueue            std::queue
 #define IPCString           std::string
+
+

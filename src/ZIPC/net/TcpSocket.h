@@ -23,20 +23,33 @@ class NetSessionNotify;
 #define TIL_SS_SHAKEHANDLE_IDLE		    0x00		//
 #define TIL_SS_SHAKEHANDLE_TRANSMIT		0x01		//
 //////////////////////////////////////////////////////////////////////////
+#pragma warning (push)
+#pragma warning (disable: 4200)
 struct SocketSendBuf {
-    std::shared_ptr<char>               m_pBuffer;
+    bool                                m_bShared = false;
     int32_t                             m_nLength = 0;
     int32_t                             m_nReadLength = 0;
-    SocketSendBuf(const char* pBuf, int32_t nLength) {
-        m_pBuffer = std::make_shared<char>(new char[nLength]);
-        memcpy(m_pBuffer.get(), pBuf, nLength);
-        m_nLength = nLength;
+    std::shared_ptr<char>               m_pBuffer;
+    char		                        m_cRevertData[0];
+    static SocketSendBuf* CreateSocketSendBuf(char* pBuf, int32_t nLength) {
+        SocketSendBuf* pRet = new (malloc(sizeof(SocketSendBuf) + nLength))SocketSendBuf();
+        pRet->m_nLength = nLength;
+        memcpy(pRet->m_cRevertData, pBuf, nLength);
+        return pRet;
     }
-    SocketSendBuf(const std::shared_ptr<char> pBuf, int32_t nLength) {
-        m_pBuffer = pBuf;
-        m_nLength = nLength;
+    static SocketSendBuf* CreateSocketSendBuf(std::shared_ptr<char>& p, int32_t nLength) {
+        SocketSendBuf* pRet = new (malloc(sizeof(SocketSendBuf)))SocketSendBuf();
+        pRet->m_bShared = true;
+        pRet->m_pBuffer = p;
+        pRet->m_nLength = nLength;
+        return pRet;
+    }
+    static void DeleteSocketSendBuf(SocketSendBuf* pBuf) {
+        pBuf->~SocketSendBuf();
+        free(pBuf);
     }
 };
+#pragma warning (pop)
 //////////////////////////////////////////////////////////////////////////
 #ifndef INVALID_SOCKET
 #define INVALID_SOCKET  (unsigned int)(~0)
@@ -68,6 +81,9 @@ public:
 
     //! 
     int32_t Connect(const sockaddr_storage& addr, int addrlen);
+
+    //!
+    void Send(SocketSendBuf* pBuf);
 
     //int32_t Listen();
     //!
@@ -103,7 +119,7 @@ protected:
     evutil_socket_t					        m_socketfd = INVALID_SOCKET;
     event							        m_revent;
     event							        m_wevent;
-    IPCQueue<SocketSendBuf>                 m_vtSocketBuf;
+    IPCVector<SocketSendBuf*>               m_vtSocketBuf;
     char                                    m_szReadySendBuffer[READBUFFERSIZE_MSG];
     int16_t                                 m_nReadySendBufferLength = 0;
 };

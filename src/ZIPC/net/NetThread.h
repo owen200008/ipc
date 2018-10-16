@@ -18,8 +18,6 @@ struct NetThreadEvent {
     std::shared_ptr<NetSessionNotify>       m_pSession;
     NetSessionNotify::pNetThreadCallback    m_callback = nullptr;
     intptr_t							    m_lRevert = 0;
-    NetThreadEvent() {
-    }
     NetThreadEvent(std::shared_ptr<NetSessionNotify> pSocket, NetSessionNotify::pNetThreadCallback pCallback) {
         m_pSession = pSocket;
         m_callback = pCallback;
@@ -44,9 +42,13 @@ public:
 
     //!get weight
     uint32_t GetWeight() { return m_nWeight; }
+public:
+    //! not thread safe
+    void ReleaseTcpSocket(TcpSocket*);
+
 protected:
     TcpSocket* AssignTcpSocket();
-    void ReleaseTcpSocket(TcpSocket*);
+    
 
 protected:
     //! get queue msg
@@ -68,8 +70,10 @@ public:
     //weight
     volatile uint32_t                           m_nWeight = 0;
     IPCVector<TcpSocket*>                       m_vtDeathSocket;
+    IPCVector<TcpSocket*>                       m_vtDeathSocketRun;
+    SpinLock                                    m_lockRevertSocket;
+    volatile bool                               m_bHasDeathSocket = false;
     IPCVector<TcpSocket*>                       m_vtRevertSocket;
-    IPCVector<TcpSocket*>                       m_vtCloseSocket;
     IPCVector<TcpSocket*>                       m_vtAllocateSocket;
 
     friend class TcpSocket;
