@@ -1,9 +1,10 @@
 #include "TcpThreadSocket.h"
+#include "ZIPC/net/TcpDefine.h"
 #include "ZIPC/net/NetMgr.h"
 #include "NetThread.h"
 #include "ZIPC/base/log/IPCLog.h"
-#include <assert.h>
 #include "ZIPC/net/TcpServer.h"
+#include "TcpAfx.h"
 
 __NS_ZILLIZ_IPC_START
 ///////////////////////////////////////////////////////////////////////////////

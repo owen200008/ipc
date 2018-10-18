@@ -52,9 +52,6 @@ set(base_src
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/base/mt/SpinLock.h
     ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/base/mt/Mutex.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/base/mt/Mutex.h
-
-    ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/base/sys/sysinfo.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/base/sys/sysinfo.h
 )
 
 set(net_src
@@ -68,6 +65,8 @@ set(net_src
     ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/TcpThreadSocketClient.h
     ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/TcpThreadAccept.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/TcpThreadAccept.h
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/TcpAfx.h
 
     ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/NetMgr.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/net/NetMgr.h

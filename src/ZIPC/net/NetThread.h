@@ -11,10 +11,6 @@
 
 __NS_ZILLIZ_IPC_START
 /////////////////////////////////////////////////////////////////////////////
-#ifndef INVALID_SOCKET
-#define INVALID_SOCKET  (unsigned int)(~0)
-#endif
-
 #define NotifyQueueSize         32          //must <= 256
 #define NotifyEventBufferSize   4096
 

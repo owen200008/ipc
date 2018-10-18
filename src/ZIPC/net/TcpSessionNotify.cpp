@@ -1,7 +1,7 @@
 #include "ZIPC/net/TcpSessionNotify.h"
-#include "ZIPC/base/sys/SysInfo.h"
 #include "ZIPC/net/NetMgr.h"
 #include "NetThread.h"
+#include <chrono>  
 
 __NS_ZILLIZ_IPC_START
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -25,7 +25,7 @@ void BasicNetStat::OnReceiveData(int nRece){
     m_tmLastRecTime = time(nullptr);
 }
 void BasicNetStat::GetTransRate(BasicNetStat& lastData, double& dSend, double& dRecv){
-    auto tNow = IPCGetTickTime();
+    auto tNow = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
     if(m_tLastStat > 0 && (tNow - m_tLastStat)  < 10000){
         dSend = m_fLastSendRate;
         dRecv = m_fLastRecvRate;
