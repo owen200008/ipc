@@ -4,27 +4,7 @@
 #include "ZIPC/net/NetMgr.h"
 #include "ZIPC/net/TcpServer.h"
 
-//func call is success
-#define PrintSuccessOrFail(Func)\
-{\
-    char szFormat[128] = {'/'};\
-    int nRetValue = sprintf(szFormat, "F:%s", #Func);\
-    if(nRetValue > 0)\
-        for(int i = nRetValue;i < 64;i++)\
-            szFormat[i] = '/';\
-    printf(szFormat);\
-    printf("\n");\
-    if(Func())\
-        nRetValue = sprintf(szFormat, "R:Success");\
-    else\
-        nRetValue = sprintf(szFormat, "R:Fail???");\
-    if(nRetValue > 0)\
-        for(int i = nRetValue;i < 64;i++)\
-            szFormat[i] = '/';\
-    printf(szFormat);\
-    printf("\n");\
-}
-
+#define CLIENTSESSIONDISPATH            3
 int main(){
     //must init before use net
     zilliz::lib::NetMgr::GetInstance().Initialize();
@@ -34,10 +14,17 @@ int main(){
         auto retInitServer = pServer->InitTcpServer(pListen, [](std::shared_ptr<zilliz::lib::TcpServerSession>& pSession) {
             pSession = zilliz::lib::TcpServerSession::CreateTcpServerSession();
             pSession->bind_connect([](zilliz::lib::NetSessionNotify* pSession)->int32_t {
-                printf("Connect session %d\n", ((zilliz::lib::TcpServerSession*)pSession)->GetSessionID());
+                auto nSessionID = ((zilliz::lib::TcpServerSession*)pSession)->GetSessionID();
+                printf("Connect session %d\n", nSessionID);
+                if (nSessionID % CLIENTSESSIONDISPATH == 0)
+                    return BASIC_NET_GENERIC_ERROR;
                 return BASIC_NET_OK;
             });
             pSession->bind_rece([](zilliz::lib::NetSessionNotify* pSession, int32_t cbData, const char * pData)->int32_t {
+                auto nSessionID = ((zilliz::lib::TcpServerSession*)pSession)->GetSessionID();
+                if (nSessionID % CLIENTSESSIONDISPATH == 1) {
+                    pSession->Close();
+                }
                 pSession->Send(pData, cbData);
                 return BASIC_NET_OK;
             });

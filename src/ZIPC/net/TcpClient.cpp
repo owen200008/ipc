@@ -1,6 +1,7 @@
 #include "ZIPC/net/TcpClient.h"
 #include "NetThread.h"
 #include "TcpThreadSocketClient.h"
+#include "ZIPC/base/log/IPCLog.h"
 
 __NS_ZILLIZ_IPC_START
 
@@ -49,7 +50,9 @@ TcpClient::TcpClient() {
 }
 
 TcpClient::~TcpClient() {
-
+    if (m_pSocket) {
+        LogFuncLocation(IPCLog_Error, "TcpClient::~TcpClient m_pSocket exist£¬ must be call shutdown");
+    }
 }
 
 //! must be call first
@@ -85,6 +88,23 @@ int32_t TcpClient::DoConnect() {
         promiseObj.set_value(((TcpThreadSocketClient*)m_pSocket)->Connect(m_addr, m_addrlen));
     });
     return future.get();
+}
+
+//! shutdown
+bool TcpClient::Shutdown() {
+    std::promise<int32_t> promiseObj;
+    auto future = promiseObj.get_future();
+    m_pNetThread->SetEvent(shared_from_this(), [this, &promiseObj]() {
+        int32_t retValue = BASIC_NET_OK;
+        if (m_pSocket) {
+            if (m_pSocket->Close() == BASIC_NET_OK) {
+                delete m_pSocket;
+                m_pSocket = nullptr;
+            }
+        }
+        promiseObj.set_value(retValue);
+    });
+    return future.get() == BASIC_NET_OK;
 }
 
 __NS_ZILLIZ_IPC_END

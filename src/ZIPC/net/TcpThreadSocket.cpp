@@ -42,8 +42,10 @@ bool TcpThreadSocket::CanClose() {
 ///////////////////////////////////////////////////////////////////////////////
 //!
 void TcpThreadSocket::Send(const SocketSendBuf& buf) {
-    m_qSocketBuf.push(std::move(buf));
-    SendDataFromQueue();
+    if (IsConnected()) {
+        m_qSocketBuf.push(std::move(buf));
+        SendDataFromQueue();
+    }
 }
 
 //!

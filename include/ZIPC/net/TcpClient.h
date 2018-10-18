@@ -24,7 +24,8 @@ public:
     //! 
     static std::shared_ptr<TcpClient> CreateTcpServerSession() {
         auto pClient = std::shared_ptr<TcpClient>(new TcpClient());
-	pClient->InitTcpClient();
+        pClient->InitTcpClient();
+        return pClient;
     }
 
     //! [IPv6Address]:port || IPv4Address:port
@@ -32,6 +33,9 @@ public:
 
     //! reconnect
     int32_t DoConnect();
+
+    //! shutdown
+    bool Shutdown();
 protected:
     TcpClient();
 
@@ -45,8 +49,6 @@ protected:
     bool                    m_bAddrSuccess = false;
     sockaddr_storage        m_addr;
     int                     m_addrlen = sizeof(sockaddr_storage);
-
-
 };
 
 __NS_ZILLIZ_IPC_END
