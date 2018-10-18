@@ -1,7 +1,9 @@
 #include "ZIPC/net/TcpSessionNotify.h"
 #include "ZIPC/net/NetMgr.h"
 #include "NetThread.h"
-#include <chrono>  
+#include <chrono>
+#include "TcpAfx.h"
+#include "TcpThreadSocket.h"
 
 __NS_ZILLIZ_IPC_START
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

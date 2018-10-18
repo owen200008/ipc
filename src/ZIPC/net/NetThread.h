@@ -6,8 +6,9 @@
 #pragma once
 #include "ZIPC/base/inc/IPCDefine.h"
 #include "ZIPC/base/mt/SpinLock.h"
-#include "TcpThreadSocket.h"
 #include "ZIPC/net/NetBaseObject.h"
+#include "event.h"
+#include "evdns.h"
 
 __NS_ZILLIZ_IPC_START
 /////////////////////////////////////////////////////////////////////////////
