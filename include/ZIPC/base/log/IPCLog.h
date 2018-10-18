@@ -53,8 +53,8 @@ protected:
 	std::function<void(IPCLogType, const char*)> m_logFunc;
 };
 
-#define LogFuncInfo(Type, ...)  IPCLog::GetInstance().LogFunc(Type, __VA_ARGS__)
+#define LogFuncInfo(Type, ...)  zilliz::lib::IPCLog::GetInstance().LogFunc(Type, __VA_ARGS__)
 
-#define LogFuncLocation(Type, ...)  IPCLog::GetInstance().LogFunc(Type, __FUNCTION__, "[", __FILE__, ":", __LINE__,"]", __VA_ARGS__)
+#define LogFuncLocation(Type, ...)  zilliz::lib::IPCLog::GetInstance().LogFunc(Type, __FUNCTION__, "[", __FILE__, ":", __LINE__,"]", __VA_ARGS__)
 
 __NS_ZILLIZ_IPC_END

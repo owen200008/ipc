@@ -21,10 +21,15 @@ bool IPCLogTest(){
 			bRet = false;
 		printf("Type: %d pData\n", type);
 	});
-	logObject.Log(zilliz::lib::IPCLog_Info, "INFO");
-	logObject.Log(zilliz::lib::IPCLog_Warn, "WARN");
-	logObject.Log(zilliz::lib::IPCLog_Error, "ERROR");
-	logObject.Log(zilliz::lib::IPCLog_Throw, "THROW");
+    LogFuncInfo(zilliz::lib::IPCLog_Info, "INFO");
+    LogFuncInfo(zilliz::lib::IPCLog_Warn, "WARN");
+    LogFuncInfo(zilliz::lib::IPCLog_Error, "ERROR");
+    LogFuncInfo(zilliz::lib::IPCLog_Throw, "THROW");
+
+    LogFuncLocation(zilliz::lib::IPCLog_Info, "INFO");
+    LogFuncLocation(zilliz::lib::IPCLog_Warn, "WARN");
+    LogFuncLocation(zilliz::lib::IPCLog_Error, "ERROR");
+    LogFuncLocation(zilliz::lib::IPCLog_Throw, "THROW");
 
 	return bRet;
 }
