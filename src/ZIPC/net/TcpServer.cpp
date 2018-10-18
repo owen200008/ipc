@@ -20,7 +20,8 @@ void TcpServerSession::InitTcpServerSession(uint32_t nSessionID, const std::shar
     m_nSessionID = nSessionID;
     m_pServer = pServer;
     m_pSocket = new TcpThreadSocketSession(m_pNetThread);
-    m_pSocket->InitTcpSocket(std::static_pointer_cast<NetSessionNotify>(shared_from_this()));
+    auto pServerSession = std::static_pointer_cast<NetSessionNotify>(shared_from_this());
+    m_pSocket->InitTcpSocket(pServerSession);
 }
 
 uint32_t TcpServerSession::OnDisconnect(uint32_t dwNetCode) {
@@ -59,7 +60,8 @@ int32_t TcpServer::InitTcpServer(const char* lpszAddress, const FuncCreateSessio
     }
     m_bAddrSuccess = true;
     m_pSocket = new TcpThreadAccept(m_pNetThread);
-    m_pSocket->InitTcpSocket(std::static_pointer_cast<TcpServer>(shared_from_this()));
+    auto pServer = std::static_pointer_cast<TcpServer>(shared_from_this());
+    m_pSocket->InitTcpSocket(pServer);
     m_createSessionFunc = func;
     return BASIC_NET_OK;
 }

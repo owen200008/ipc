@@ -10,7 +10,7 @@
 #include <winsock2.h>    
 #include <windows.h>
 #else
-
+#include <sys/socket.h>
 #endif
 
 __NS_ZILLIZ_IPC_START
@@ -23,8 +23,8 @@ public:
 
     //! 
     static std::shared_ptr<TcpClient> CreateTcpServerSession() {
-        auto& pClient = std::shared_ptr<TcpClient>(new TcpClient());
-        pClient->InitTcpClient();
+        auto pClient = std::shared_ptr<TcpClient>(new TcpClient());
+	pClient->InitTcpClient();
     }
 
     //! [IPv6Address]:port || IPv4Address:port

@@ -55,7 +55,8 @@ TcpClient::~TcpClient() {
 //! must be call first
 void TcpClient::InitTcpClient() {
     m_pSocket = new TcpThreadSocketClient(m_pNetThread);
-    m_pSocket->InitTcpSocket(std::static_pointer_cast<NetSessionNotify>(shared_from_this()));
+    auto pClient = std::static_pointer_cast<NetSessionNotify>(shared_from_this());
+    m_pSocket->InitTcpSocket(pClient);
 }
 
 TcpThreadSocket * TcpClient::GetThreadSocket(){

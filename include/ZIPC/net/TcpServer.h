@@ -10,7 +10,7 @@
 #include <winsock2.h>    
 #include <windows.h>
 #else
-
+#include <sys/socket.h>
 #endif
 
 __NS_ZILLIZ_IPC_START
