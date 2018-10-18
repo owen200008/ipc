@@ -8,6 +8,7 @@
 #include "ZIPC/base/inc/IPCDefine.h"
 #include "event.h"
 #include "evdns.h"
+#include "TcpAfx.h"
 
 __NS_ZILLIZ_IPC_START
 //////////////////////////////////////////////////////////////////////////

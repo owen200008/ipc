@@ -5,7 +5,7 @@
 #include "ZIPC/base/log/IPCLog.h"
 #include "ZIPC/net/TcpServer.h"
 #include "TcpThreadSocketSession.h"
-#include "TcpAfx.h"
+
 
 __NS_ZILLIZ_IPC_START
 ///////////////////////////////////////////////////////////////////////////////
