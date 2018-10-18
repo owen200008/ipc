@@ -3,6 +3,7 @@
 #include <thread>
 #include "ZIPC/base/log/IPCLog.h"
 #include "ZIPC/base/mt/SpinLock.h"
+#include <cstring>
 
 __NS_ZILLIZ_IPC_START
 //////////////////////////////////////////////////////////////////////////
