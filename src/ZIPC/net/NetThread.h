@@ -6,26 +6,24 @@
 #pragma once
 #include "ZIPC/base/inc/IPCDefine.h"
 #include "ZIPC/base/mt/SpinLock.h"
-#include "TcpSocket.h"
-#include "ZIPC/net/TcpSessionNotify.h"
+#include "TcpThreadSocket.h"
+#include "ZIPC/net/NetBaseObject.h"
 
 __NS_ZILLIZ_IPC_START
 /////////////////////////////////////////////////////////////////////////////
+#ifndef INVALID_SOCKET
+#define INVALID_SOCKET  (unsigned int)(~0)
+#endif
+
 #define NotifyQueueSize         32          //must <= 256
 #define NotifyEventBufferSize   4096
 
 struct NetThreadEvent {
-    std::shared_ptr<NetSessionNotify>       m_pSession;
-    NetSessionNotify::pNetThreadCallback    m_callback = nullptr;
-    intptr_t							    m_lRevert = 0;
-    NetThreadEvent(std::shared_ptr<NetSessionNotify> pSocket, NetSessionNotify::pNetThreadCallback pCallback) {
+    std::shared_ptr<NetBaseObject>                                  m_pSession;
+    std::function<void()>   m_func;
+    NetThreadEvent(const std::shared_ptr<NetBaseObject>& pSocket, const std::function<void()>& func) {
         m_pSession = pSocket;
-        m_callback = pCallback;
-    }
-    NetThreadEvent(std::shared_ptr<NetSessionNotify> pSocket, NetSessionNotify::pNetThreadCallback pCallback, intptr_t lRevert) {
-        m_pSession = pSocket;
-        m_callback = pCallback;
-        m_lRevert = lRevert;
+        m_func = func;
     }
 };
 
@@ -38,18 +36,13 @@ public:
     void Init(uint16_t nIndex, struct event_config *cfg);
 
 	//! set event
-    void SetEvent(NetThreadEvent&);
+    void SetEvent(const std::shared_ptr<NetBaseObject>& pSession, const std::function<void()>& func);
+
+    //! is same thread
+    bool IsSameThread();
 
     //!get weight
     uint32_t GetWeight() { return m_nWeight; }
-public:
-    //! not thread safe
-    void ReleaseTcpSocket(TcpSocket*);
-
-protected:
-    TcpSocket* AssignTcpSocket();
-    
-
 protected:
     //! get queue msg
     void RunMessageQueue();
@@ -69,14 +62,6 @@ public:
 
     //weight
     volatile uint32_t                           m_nWeight = 0;
-    IPCVector<TcpSocket*>                       m_vtDeathSocket;
-    IPCVector<TcpSocket*>                       m_vtDeathSocketRun;
-    SpinLock                                    m_lockRevertSocket;
-    volatile bool                               m_bHasDeathSocket = false;
-    IPCVector<TcpSocket*>                       m_vtRevertSocket;
-    IPCVector<TcpSocket*>                       m_vtAllocateSocket;
-
-    friend class TcpSocket;
 };
 
 

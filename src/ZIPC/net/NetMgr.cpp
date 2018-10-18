@@ -1,4 +1,4 @@
-#include "NetMgr.h"
+#include "ZIPC/net/NetMgr.h"
 #include <signal.h>
 #include "ZIPC/base/log/IPCLog.h"
 #include "ZIPC/base/conf/IPCConfRead.h"
@@ -12,18 +12,24 @@ NetMgr& NetMgr::GetInstance(){
 }
 /////////////////////////////////////////////////////////////////////////////
 NetMgr::NetMgr(){
-    //create net
-    Initialize();
 }
 
 NetMgr::~NetMgr(){
-    //release net
-    CloseNetSocket();
 }
 
 void NetMgr::Initialize(){
-    IPCLog::GetInstance().Log(IPCLog_Info, "Start NetMgr Initialize");
-#ifndef _MSC_VER
+    //has init
+    if (m_pEventThreads)
+        return;
+    LogFuncInfo(IPCLog_Info, "Start NetMgr Initialize");
+#ifdef _MSC_VER
+    WORD wVersionRequested;
+    WSADATA wsaData;
+
+    wVersionRequested = MAKEWORD(2, 2);
+
+    (void)WSAStartup(wVersionRequested, &wsaData);
+#else
     struct sigaction sa;
     sa.sa_handler = SIG_IGN;
     sigaction(SIGPIPE, &sa, 0);
@@ -31,10 +37,10 @@ void NetMgr::Initialize(){
 
     struct event_config *cfg = event_config_new();
     evdns_set_log_fn([](int is_warn, const char *msg){
-    	IPCLog::GetInstance().Log(is_warn ? IPCLog_Warn : IPCLog_Info, msg);
+        LogFuncInfo(is_warn ? IPCLog_Warn : IPCLog_Info, msg);
     });
     auto confRead = IPCConfRead::GetInstance();
-    m_nEventThreadCount = atoi(confRead.GetConf("IPCNet", "NetThreadCount", "1"));
+    m_nEventThreadCount = atoi(confRead.GetConf("IPCNet", "NetThreadCount", "2"));
     if(m_nEventThreadCount <= 0)
         //default one thread
         m_nEventThreadCount = 1;
@@ -44,20 +50,16 @@ void NetMgr::Initialize(){
     for(int i = 0; i < m_nEventThreadCount; i++){
         m_pEventThreads[i].Init(i, cfg);
     }
-    //wait init all thread
-    while(GetInitNetThreadCount() != m_nEventThreadCount){
-        CCSwitchToThread();
-    }
 
     //m_thread_ontimer_ptr = std::make_shared<std::thread>(&NetMgr::OnTimer, this);
 
     event_config_free(cfg);
-    IPCLog::GetInstance().Log(IPCLog_Info, "End NetMgr Initialize");
+    LogFuncInfo(IPCLog_Info, "End NetMgr Initialize");
 }
 
 
 void NetMgr::CloseNetSocket(){
-    IPCLog::GetInstance().Log(IPCLog_Info, "Start NetMgr CLose");
+    LogFuncInfo(IPCLog_Info, "Start NetMgr CLose");
     m_bTimeToKill = true;
     if(m_thread_ontimer_ptr != nullptr)
         m_thread_ontimer_ptr->join();
@@ -66,7 +68,10 @@ void NetMgr::CloseNetSocket(){
         delete[] m_pEventThreads;
         m_pEventThreads = nullptr;
     }
-    IPCLog::GetInstance().Log(IPCLog_Info, "End NetMgr CLose");
+#ifdef _MSC_VER
+    WSACleanup();
+#endif
+    LogFuncInfo(IPCLog_Info, "End NetMgr CLose");
 }
 ////////////////////////////////////////////////////////////////////////////////////////
 NetThread* NetMgr::AssignNetThread() {
@@ -88,16 +93,6 @@ uint16_t NetMgr::ReCalcNetThreadIndex() {
     m_nCurrentNetThreadIndex = nIndex;
     m_nNetThreadIndexGetCount.store(0, std::memory_order_release);
     return nIndex;
-}
-
-void NetMgr::IncrementNetThreadCount() {
-    m_nInitThreadCount.fetch_add(1, std::memory_order_relaxed);
-}
-void NetMgr::DecrementNetThreadCount() {
-    m_nInitThreadCount.fetch_sub(1, std::memory_order_relaxed);
-}
-uint16_t NetMgr::GetInitNetThreadCount() {
-    return m_nInitThreadCount.load(std::memory_order_relaxed);
 }
 ////////////////////////////////////////////////////////////////////////////////////////
 __NS_ZILLIZ_IPC_END

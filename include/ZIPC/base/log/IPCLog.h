@@ -6,9 +6,7 @@
 #pragma once
 
 #include "../inc/IPCDefine.h"
-#include <functional>
-#include <math.h>
-#include <stdarg.h>
+#include <sstream>
 
 __NS_ZILLIZ_IPC_START
 
@@ -19,7 +17,7 @@ enum IPCLogType{
 	IPCLog_Throw,//not continue
 };
 
-#define LOG_MESSAGE_SIZE 256
+#define LOG_MESSAGE_SIZE 512
 
 class IPCLog{
 public:
@@ -31,19 +29,32 @@ public:
 	}
 
 	template<class... _Types>
-	void Log(IPCLogType type, const char* pszLog, _Types&&... _Args){
-		char tmp[LOG_MESSAGE_SIZE];
-        ccsnprintf(szBuf, LOG_MESSAGE_SIZE, pLog, std::forward<_Types>(_Args)...);
-        Log(type, tmp);
+	void LogFunc(IPCLogType type, _Types&&... _Args){
+        std::stringstream stream;
+        LogStream(stream, _Args...);
+        if (m_logFunc) {
+            m_logFunc(type, stream.str().c_str());
+        }
+        else {
+            stream << std::endl;
+            printf(stream.str().c_str());
+        }
 	}
-
-	void Log(IPCLogType type, const char* pszLog){
-		if(nullptr != m_logFunc){
-			m_logFunc(type, pszLog);
-		}
+    template<class T, class... _Types>
+	void LogStream(std::stringstream& stream, T first, _Types&&... _Args){
+        stream << first;
+        LogStream(stream, _Args...);
 	}
+    template<class T>
+    void LogStream(std::stringstream& stream, T first) {
+        stream << first;
+    }
 protected:
 	std::function<void(IPCLogType, const char*)> m_logFunc;
 };
+
+#define LogFuncInfo(Type, ...)  IPCLog::GetInstance().LogFunc(Type, __VA_ARGS__)
+
+#define LogFuncLocation(Type, ...)  IPCLog::GetInstance().LogFunc(Type, __FUNCTION__, "[", __FILE__, ":", __LINE__,"]", __VA_ARGS__)
 
 __NS_ZILLIZ_IPC_END

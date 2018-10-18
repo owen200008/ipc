@@ -38,8 +38,6 @@ include_directories(${PROJECT_BINARY_DIR}/src/libevent/include)
 
 set(base_src
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/base/inc/IPCDefine.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/base/misc/fastdelegate.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/base/misc/fastdelegatebind.h
 
 	${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/base/conf/IPCConfRead.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/base/conf/IPCConfRead.h
@@ -60,15 +58,28 @@ set(base_src
 )
 
 set(net_src
-    ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/NetMgr.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/NetMgr.h
     ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/NetThread.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/NetThread.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/TcpSocket.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/TcpSocket.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/TcpThreadSocket.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/TcpThreadSocket.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/TcpThreadSocketSession.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/TcpThreadSocketSession.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/TcpThreadSocketClient.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/TcpThreadSocketClient.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/TcpThreadAccept.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/TcpThreadAccept.h
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/NetMgr.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/net/NetMgr.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/NetBaseObject.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/net/NetBaseObject.h
 
     ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/TcpSessionNotify.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/net/TcpSessionNotify.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/TcpClient.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/net/TcpClient.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/TcpServer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/net/TcpServer.h
 
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/net/TcpDefine.h
 )
@@ -82,5 +93,4 @@ add_library(zipc STATIC
 )
 
 set_target_properties(zipc PROPERTIES LINKER_LANGUAGE CXX)
-target_link_libraries(zipc event_static)
 

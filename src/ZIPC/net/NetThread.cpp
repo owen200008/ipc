@@ -1,5 +1,5 @@
 #include "NetThread.h"
-#include "NetMgr.h"
+#include "ZIPC/net/NetMgr.h"
 #include "ZIPC/base/log/IPCLog.h"
 #include "ZIPC/base/conf/IPCConfRead.h"
 
@@ -8,28 +8,22 @@ __NS_ZILLIZ_IPC_START
 NetThread::NetThread(){
     m_vtEvent.reserve(256);
     m_vtEventRun.reserve(256);
-    m_vtDeathSocket.reserve(256);
-    m_vtDeathSocketRun.reserve(256);
-    m_vtRevertSocket.reserve(256);
-    m_vtAllocateSocket.reserve(256);
 }
 
 NetThread::~NetThread(){
-    for (auto p : m_vtAllocateSocket) {
-        delete p;
-    }
-    m_vtAllocateSocket.clear();
     if(m_base){
-        if (m_dnsbase) {
-            evdns_base_free(m_dnsbase, 0);
-        }
-
         event_base_loopbreak(m_base);
+        //send notify
+        send(m_pair[1], "", 1, 0);
         m_thread_worker_ptr->join();
 
         event_del(&notify_event);
         evutil_closesocket(m_pair[0]);
         evutil_closesocket(m_pair[1]);
+        
+        if (m_dnsbase) {
+            evdns_base_free(m_dnsbase, 0);
+        }
         event_base_free(m_base);
     }
 }
@@ -37,7 +31,7 @@ NetThread::~NetThread(){
 //! init
 void NetThread::Init(uint16_t nIndex, struct event_config *cfg){
 	if(evutil_socketpair(AF_UNIX, SOCK_STREAM, 0, m_pair) == -1){
-		IPCLog::GetInstance().Log(IPCLog_Throw, "create evutil_socketpair error");
+        LogFuncLocation(IPCLog_Throw, "create evutil_socketpair error");
 		return;
 	}
     m_nIndex = nIndex;
@@ -53,25 +47,23 @@ void NetThread::Init(uint16_t nIndex, struct event_config *cfg){
     }, this);
 	event_base_set(m_base, &notify_event);
 	if(event_add(&notify_event, NULL) == -1){
-		IPCLog::GetInstance().Log(IPCLog_Throw, "libevent eventadd error");
+        LogFuncLocation(IPCLog_Throw, "libevent eventadd error");
 		return;
 	}
 	m_dnsbase = evdns_base_new(m_base, 1);
 	if(!m_dnsbase){
-		IPCLog::GetInstance().Log(IPCLog_Throw, "libevent eventdns add error");
+        LogFuncLocation(IPCLog_Throw, "libevent eventdns add error");
 		return;
 	}
 	m_thread_worker_ptr = std::make_shared<std::thread>(&NetThread::EventLoop, this);
 }
 
 void NetThread::EventLoop(){
-	NetMgr::GetInstance().IncrementNetThreadCount();
     event_base_loop(m_base, 0);
-    NetMgr::GetInstance().DecrementNetThreadCount();
 }
 
 //!
-void NetThread::SetEvent(NetThreadEvent& setEvent){
+void NetThread::SetEvent(const std::shared_ptr<NetBaseObject>& pSession, const std::function<void()>& func){
     //may be loop if call on same thread
     /*if(std::this_thread::get_id() == m_thread_worker_ptr->get_id()){
         setEvent.m_callback(setEvent.m_pSession, setEvent.m_lRevert);
@@ -81,11 +73,19 @@ void NetThread::SetEvent(NetThreadEvent& setEvent){
     {
         CSpinLockFunc lock(&m_lockEvent, true);
         nSize = m_vtEvent.size();
-        m_vtEvent.push_back(std::move(setEvent));
+        m_vtEvent.push_back(std::move(NetThreadEvent(pSession, func)));
     }
     if(nSize == 0){
         send(m_pair[1], "", 1, 0);
     }
+}
+
+//! is same thread
+bool NetThread::IsSameThread() {
+    if (std::this_thread::get_id() == m_thread_worker_ptr->get_id()) {
+        return true;
+    }
+    return false;
 }
 
 void NetThread::RunMessageQueue(){
@@ -98,43 +98,10 @@ void NetThread::RunMessageQueue(){
         swap(m_vtEvent, m_vtEventRun);
     }
     for (auto& setEvent : m_vtEventRun) {
-        auto pSocket = setEvent.m_pSession->GetTcpSocket();
-        if (pSocket == nullptr) {
-            pSocket = AssignTcpSocket();
-            pSocket->InitTcpSocket(setEvent.m_pSession);
-        }
-        setEvent.m_callback(setEvent.m_pSession, pSocket, setEvent.m_lRevert);
+        setEvent.m_func();
     }
+    m_vtEventRun.clear();
 }
 
-void NetThread::ReleaseTcpSocket(TcpSocket* p) {
-    //first set to death
-    CSpinLockFunc lock(&m_lockEvent, true);
-    m_vtDeathSocket.push_back(p);
-    lock.UnLock();
-    if (!m_bHasDeathSocket) {
-        m_bHasDeathSocket = true;
-    }
-}
-TcpSocket* NetThread::AssignTcpSocket() {
-    if (m_bHasDeathSocket) {
-        CSpinLockFunc lock(&m_lockEvent, true);
-        swap(m_vtDeathSocketRun, m_vtDeathSocket);
-        lock.UnLock();
-        m_bHasDeathSocket = false;
-        for (auto p : m_vtDeathSocketRun) {
-            m_vtRevertSocket.push_back(p);
-        }
-        m_vtDeathSocketRun.clear();
-    }
-    if (m_vtRevertSocket.size() > 0) {
-        TcpSocket* p = *m_vtRevertSocket.rbegin();
-        m_vtRevertSocket.pop_back();
-        return p;
-    }
-    auto p = new TcpSocket(this);
-    m_vtAllocateSocket.push_back(p);
-    return p;
-}
 ////////////////////////////////////////////////////////////////////////////////////////
 __NS_ZILLIZ_IPC_END

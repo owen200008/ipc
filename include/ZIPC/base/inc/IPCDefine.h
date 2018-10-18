@@ -36,4 +36,3 @@ typedef void(*pIPCFree)(void*);
 #define IPCQueue            std::queue
 #define IPCString           std::string
 
-

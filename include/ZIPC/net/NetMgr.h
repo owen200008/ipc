@@ -28,10 +28,6 @@ public:
 public:
     NetThread* AssignNetThread();
 
-    void IncrementNetThreadCount();
-    void DecrementNetThreadCount();
-    uint16_t GetInitNetThreadCount();
-
     //! calc net threadindex
     uint16_t ReCalcNetThreadIndex();
 protected:
@@ -40,7 +36,6 @@ protected:
     std::shared_ptr<std::thread>                m_thread_ontimer_ptr;
 
     uint16_t 			                        m_nEventThreadCount = 1;
-    std::atomic<uint16_t>                       m_nInitThreadCount = 0;
     NetThread*                                  m_pEventThreads = nullptr;
 
     //! 获取当前的线程

@@ -1,6 +1,6 @@
 #include "ZIPC/net/TcpSessionNotify.h"
 #include "ZIPC/base/sys/SysInfo.h"
-#include "NetMgr.h"
+#include "ZIPC/net/NetMgr.h"
 #include "NetThread.h"
 
 __NS_ZILLIZ_IPC_START
@@ -53,75 +53,52 @@ void BasicNetStat::GetTransRate(BasicNetStat& lastData, double& dSend, double& d
 }
 //////////////////////////////////////////////////////////////////////////////////////////////////
 NetSessionNotify::NetSessionNotify(){
-    m_pNetThread = NetMgr::GetInstance().AssignNetThread();
 }
 
 NetSessionNotify::~NetSessionNotify(){
-    if (m_pSocket) {
-        //m_pNetThread->Re
-    }
 }
 
 void NetSessionNotify::GetNetStatInfo(BasicNetStat& netState) {
     netState = m_stNet;
 }
 
-NetThread* NetSessionNotify::GetNetThread() {
-    return m_pNetThread;
-}
-TcpSocket* NetSessionNotify::GetTcpSocket() {
-    return m_pSocket;
-}
-
 bool NetSessionNotify::IsConnected() {
-    return m_pSocket ? m_pSocket->IsConnected() : false;
+    return GetThreadSocket()->IsConnected();
 }
 //!
 bool NetSessionNotify::IsTransmit() {
-    return m_pSocket ? m_pSocket->IsTransmit() : false;
+    return GetThreadSocket()->IsTransmit();
 }
 
-
 bool NetSessionNotify::Close(){
-    if (!m_pSocket) {
-        return true;
-    }
+    //no check socketid inner thread check
     std::promise<int32_t> promiseObj;
     auto future = promiseObj.get_future();
     
-    GotoNetThread([](std::shared_ptr<NetSessionNotify>& pSession, TcpSocket* pSocket, intptr_t lRevert) {
-        std::promise<int32_t>* pRevert = (std::promise<int32_t>*)lRevert;
-        pRevert->set_value(pSocket->Close());
-    }, (intptr_t)&promiseObj);
+    m_pNetThread->SetEvent(shared_from_this(), [&promiseObj, this](){
+        promiseObj.set_value(GetThreadSocket()->Close());
+    });
     return future.get() == BASIC_NET_OK;
 }
 
-int32_t NetSessionNotify::Send(char *pData, int32_t cbData) {
-    if (!m_pSocket) {
-        return BASIC_NET_SOCKET_NOEXIST;
-    }
-    GotoNetThread([](std::shared_ptr<NetSessionNotify>& pSession, TcpSocket* pSocket, intptr_t lRevert) {
-        pSocket->Send((SocketSendBuf*)lRevert);
-    }, (intptr_t)SocketSendBuf::CreateSocketSendBuf(pData, cbData));
+int32_t NetSessionNotify::Send(const char *pData, int32_t cbData) {
+    if (!IsConnected())
+        return BASIC_NET_NO_CONNECT;
+
+    SocketSendBuf sendBuf(pData, cbData);
+    m_pNetThread->SetEvent(shared_from_this(), [this, sendBuf]() {
+        GetThreadSocket()->Send(sendBuf);
+    });
     return BASIC_NET_OK;
 }
-int32_t NetSessionNotify::Send(std::shared_ptr<char> pData, int32_t cbData) {
-    GotoNetThread([](std::shared_ptr<NetSessionNotify>& pSession, TcpSocket* pSocket, intptr_t lRevert) {
-        pSocket->Send((SocketSendBuf*)lRevert);
-    }, (intptr_t)SocketSendBuf::CreateSocketSendBuf(pData, cbData));
+int32_t NetSessionNotify::Send(const std::shared_ptr<char>& pData, int32_t cbData) {
+    if (!GetThreadSocket()->IsConnected())
+        return BASIC_NET_NO_CONNECT;
+    SocketSendBuf sendBuf(pData, cbData);
+    m_pNetThread->SetEvent(shared_from_this(), [this, sendBuf]() {
+        GetThreadSocket()->Send(sendBuf);
+    });
     return BASIC_NET_OK;
-}
-
-//!
-void NetSessionNotify::InitSocket(TcpSocket* pSocket) {
-    m_pSocket = pSocket;
-}
-
-//////////////////////////////////////////////////////////////////////////////////////////////////
-//! change to netthread
-void NetSessionNotify::GotoNetThread(pNetThreadCallback pCallback, intptr_t lRevert) {
-    NetThreadEvent setEvent(shared_from_this(), pCallback, lRevert);
-    m_pNetThread->SetEvent(setEvent);
 }
 
 __NS_ZILLIZ_IPC_END

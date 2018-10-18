@@ -15,27 +15,38 @@
 
 __NS_ZILLIZ_IPC_START
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-class NetClient : public NetSessionNotify {
+class TcpThreadSocketClient;
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+class TcpClient : public NetSessionNotify {
 public:
-    NetClient();
-    virtual ~NetClient();
+    virtual ~TcpClient();
+
+    //! 
+    static std::shared_ptr<TcpClient> CreateTcpServerSession() {
+        auto& pClient = std::shared_ptr<TcpClient>(new TcpClient());
+        pClient->InitTcpClient();
+    }
 
     //! [IPv6Address]:port || IPv4Address:port
     virtual int32_t Connect(const char* lpszAddress);
 
     //! reconnect
     int32_t DoConnect();
-
-    const sockaddr_storage& GetAddr() {
-        return m_addr;
-    }
-    const int GetAddrLen() {
-        return m_addrlen;
-    }
 protected:
+    TcpClient();
+
+    //! must be call first
+    void InitTcpClient();
+
+    //!
+    virtual TcpThreadSocket * GetThreadSocket() override;
+protected:
+    TcpThreadSocketClient*  m_pSocket;
     bool                    m_bAddrSuccess = false;
     sockaddr_storage        m_addr;
     int                     m_addrlen = sizeof(sockaddr_storage);
+
+
 };
 
 __NS_ZILLIZ_IPC_END

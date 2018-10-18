@@ -1,5 +1,6 @@
 #include "ZIPC/net/TcpClient.h"
-#include "TcpSocket.h"
+#include "NetThread.h"
+#include "TcpThreadSocketClient.h"
 
 __NS_ZILLIZ_IPC_START
 
@@ -43,15 +44,25 @@ bool ParseAddress(const char *ip_as_string, IPCString& strAddress, uint16_t& nPo
     return false;
 }
 
-NetClient::NetClient() {
+TcpClient::TcpClient() {
 
 }
 
-NetClient::~NetClient() {
+TcpClient::~TcpClient() {
 
 }
 
-int32_t NetClient::Connect(const char* lpszAddress) {
+//! must be call first
+void TcpClient::InitTcpClient() {
+    m_pSocket = new TcpThreadSocketClient(m_pNetThread);
+    m_pSocket->InitTcpSocket(std::static_pointer_cast<NetSessionNotify>(shared_from_this()));
+}
+
+TcpThreadSocket * TcpClient::GetThreadSocket(){
+    return m_pSocket;
+}
+
+int32_t TcpClient::Connect(const char* lpszAddress) {
     if (lpszAddress == nullptr || lpszAddress[0] == '\0') {
         return BASIC_NET_INVALID_ADDRESS;
     }
@@ -62,24 +73,16 @@ int32_t NetClient::Connect(const char* lpszAddress) {
     return DoConnect();
 }
 
-struct ConnectRevert {
-    
-    evutil_socket_t         m_socketfd;
-};
 //! reconnect
-int32_t NetClient::DoConnect() {
-    if (m_pSocket)
-        return BASIC_NET_ALREADY_CONNECT;
+int32_t TcpClient::DoConnect() {
     if (!m_bAddrSuccess)
         return BASIC_NET_INVALID_ADDRESS;
     std::promise<int32_t> promiseObj;
     auto future = promiseObj.get_future();
     
-    GotoNetThread([](std::shared_ptr<NetSessionNotify>& pSession, TcpSocket* pSocket, intptr_t lRevert) {
-        auto p = (NetClient*)pSession.get();
-        std::promise<int32_t>* pRevert = (std::promise<int32_t>*)lRevert;
-        pRevert->set_value(TcpSocket::AssignConnect(pSession, p->GetAddr(), p->GetAddrLen()));
-    }, (intptr_t)&promiseObj);
+    m_pNetThread->SetEvent(shared_from_this(), [this, &promiseObj]() {
+        promiseObj.set_value(((TcpThreadSocketClient*)m_pSocket)->Connect(m_addr, m_addrlen));
+    });
     return future.get();
 }
 
