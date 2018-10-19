@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <thread>
+#include <cstring>
 #include "ZIPC/net/NetMgr.h"
 #include "ZIPC/base/log/IPCLog.h"
 #include "ZIPC/base/conf/IPCConfRead.h"
