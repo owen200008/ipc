@@ -14,7 +14,7 @@
 class TcpClientTest : public zilliz::lib::TcpClient {
 public:
     //! 
-    static std::shared_ptr<TcpClient> CreateTcpClientTest(const std::shared_ptr<char>& pSendData, uint32_t nLength) {
+    static std::shared_ptr<TcpClient> CreateTcpClientTest(const std::shared_ptr<char> pSendData, uint32_t nLength) {
         auto p = new TcpClientTest();
         p->m_pSendData = pSendData;
         p->m_nSendLength = nLength;
@@ -22,7 +22,13 @@ public:
         pClient->InitTcpClient();
         return pClient;
     }
-
+    void Reset() {
+        m_bAuth = false;
+        n_bCheckFinish = false;
+        m_nActionIndex = 0;
+        m_nCheckLength = 0;
+        m_receive.SetDataLength(0);
+    }
     bool CheckReceive() {
         auto nReceiveLength = m_receive.GetDataLength();
         if (nReceiveLength > 0) {
@@ -30,14 +36,14 @@ public:
                 printf("error receive too much %d %d %d\n", m_nCheckLength, nReceiveLength, m_nSendLength);
                 return false;
             }
-            char* pBuffer = m_pSendData.get();
-            if (memcmp(pBuffer + m_nCheckLength, m_receive.GetDataBuffer(), nReceiveLength) != 0) {
+            if (memcmp(m_pSendData.get() + m_nCheckLength, m_receive.GetDataBuffer(), nReceiveLength) != 0) {
                 printf("check buffer error %d %d %d\n", m_nCheckLength, nReceiveLength, m_nSendLength);
                 return false;
             }
             m_receive.SetDataLength(0);
             m_nCheckLength += nReceiveLength;
             if (m_nCheckLength == m_nSendLength) {
+                n_bCheckFinish = true;
                 printf("check finish close!\n");
                 Close();
             }
@@ -46,6 +52,7 @@ public:
     }
 
     bool                    m_bAuth = false;
+    bool                    n_bCheckFinish = false;
     uint32_t                m_nActionIndex = 0;
     uint32_t                m_nCheckLength = 0;
     std::shared_ptr<char>   m_pSendData;
@@ -55,10 +62,15 @@ public:
 
     //use only in callback
     zilliz::lib::BitStream  m_send;
+
+    //calc use time
+    uint64_t                m_begin;
+
 };
 
-void StartServerSend(const char* pAddress, std::shared_ptr<char> pSendData, uint32_t nLength) {
+void StartServerSend(const char* pAddress, const std::shared_ptr<char>& pSendData, uint32_t nLength) {
     do {
+        bool bContinue = true;
         std::shared_ptr<zilliz::lib::TcpClient> pClient = TcpClientTest::CreateTcpClientTest(pSendData, nLength);
         pClient->bind_connect([](zilliz::lib::NetSessionNotify* pSession)->int32_t {
             return BASIC_NET_OK;
@@ -75,6 +87,7 @@ void StartServerSend(const char* pAddress, std::shared_ptr<char> pSendData, uint
                 pSession->m_receive >> pSession->m_nActionIndex;
                 pSession->m_bAuth = true;
                 pSession->Send(pData, cbData);
+                pSession->m_begin = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
                 return BASIC_NET_OK;
             }
             switch (pSession->m_nActionIndex % TCPTestUseCaseServerSendFirst_Max) {
@@ -101,12 +114,23 @@ void StartServerSend(const char* pAddress, std::shared_ptr<char> pSendData, uint
             //pSession->Send(pData, cbData);
             return BASIC_NET_OK;
         });
-        pClient->bind_disconnect([](zilliz::lib::NetSessionNotify* pSession, uint32_t dwNetCode)->int32_t {
+        pClient->bind_disconnect([&](zilliz::lib::NetSessionNotify* pNotify, uint32_t dwNetCode)->int32_t {
             if (dwNetCode & BASIC_NETCODE_CLOSE_REMOTE) {
                 printf("Disconnect by remote\n");
             }
             else {
                 printf("Disconnect\n");
+            }
+            
+            TcpClientTest* pSession = (TcpClientTest*)pNotify;
+            if (pSession->n_bCheckFinish) {
+                uint64_t nEnd = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+                double dReceiveMB = ((double)pSession->m_nSendLength) * 1000 / (1024 * 1024) / (nEnd - pSession->m_begin);
+                printf("CheckFinish %.2fMB/s\n", dReceiveMB);
+            }
+            if (bContinue) {
+                pSession->Reset();
+                pSession->DoConnect();
             }
             return BASIC_NET_OK;
         });
@@ -116,6 +140,7 @@ void StartServerSend(const char* pAddress, std::shared_ptr<char> pSendData, uint
             break;
         }
         getchar();
+        bContinue = false;
         if (!pClient->IsShutdown()) {
             pClient->Shutdown();
             std::chrono::milliseconds dura(1000);
@@ -136,24 +161,28 @@ int main() {
     //must init before use net
     zilliz::lib::NetMgr::GetInstance().Initialize();
 
-    std::shared_ptr<char> pSendData;
-    uint32_t nSendLength = 0;
+    std::shared_ptr<char> pSendBuffer;
+    int32_t nSendLength = 0;
     do {
-        FILE* fp = fopen("E:/github/ipc/send.dat", "r");
-        if (!fp) {
-            printf("read file error\n");
-            break;
+        //构建发送的buffer
+        {
+            zilliz::lib::BitStream sendBuffer;
+            sendBuffer.SetDataLength(1024 * 1024 * 400);
+            sendBuffer.SetDataLength(0);
+            for (int i = 0; i < 1024; i++) {
+                sendBuffer << i;
+            }
+            for (int j = 0; j < 2; j++) {
+                for (int i = 0; i < 10; i++) {
+                    sendBuffer.AppendData(sendBuffer.GetDataBuffer(), sendBuffer.GetDataLength());
+                }
+            }
+            nSendLength = sendBuffer.GetDataLength();
+            pSendBuffer = std::shared_ptr<char>(new char[nSendLength]);
+            memcpy(pSendBuffer.get(), sendBuffer.GetDataBuffer(), nSendLength);
         }
-        fseek(fp, 0, SEEK_END);
-        long lLength = ftell(fp);
-        fseek(fp, 0, SEEK_SET);
-        if (lLength > 0) {
-            nSendLength = lLength;
-            pSendData = std::shared_ptr<char>(new char[lLength]);
-            fread(pSendData.get(), sizeof(char), lLength, fp);
-        }
-        fclose(fp);
-        StartServerSend("127.0.0.1:19999", pSendData, nSendLength);
+        
+        StartServerSend("127.0.0.1:19999", pSendBuffer, nSendLength);
     } while (0);
 
     getchar();
