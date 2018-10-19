@@ -141,7 +141,7 @@ void StartServerSend(const char* pAddress, const std::shared_ptr<char>& pSendDat
         }
         getchar();
         bContinue = false;
-        if (!pClient->IsShutdown()) {
+        while (!pClient->IsShutdown()) {
             pClient->Shutdown();
             std::chrono::milliseconds dura(1000);
             std::this_thread::sleep_for(dura);

@@ -182,12 +182,11 @@ void StartServerSend(const char* pListen, const std::shared_ptr<char>& pSendData
 
         getchar();
 
-        if (pServer->IsShutdown()) {
+        while (pServer->IsShutdown()) {
             pServer->Shutdown();
             std::chrono::milliseconds dura(10000);
             std::this_thread::sleep_for(dura);
         }
-        pServer->Shutdown();
     } while (false);
 }
 
