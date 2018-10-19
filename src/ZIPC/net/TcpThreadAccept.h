@@ -2,6 +2,7 @@
 // filename : 	TcpAccept.h
 // describ:		tcp listen link
 // version:   	1.0V
+// Copyright:   Copyright (c) 2018 zilliz
 ************************************************************************************************/
 #pragma once
 

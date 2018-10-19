@@ -2,6 +2,7 @@
 // filename : 	NetThread.h
 // describ:		libevent threads mgr
 // version:   	1.0V
+// Copyright:   Copyright (c) 2018 zilliz
 ************************************************************************************************/
 #pragma once
 #include "ZIPC/base/inc/IPCDefine.h"

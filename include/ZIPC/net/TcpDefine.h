@@ -2,9 +2,11 @@
 // filename : 	TcpDefine.h
 // describ:		tcp define
 // version:   	1.0V
+// Copyright:   Copyright (c) 2018 zilliz
 ************************************************************************************************/
 #pragma once
 
+#include "version.h"
 /////////////////////////////////////////////////////////////////////////////////////////////
 #define NET_ERROR								(0xE0000000 | 0x00070000)	    //net error
 

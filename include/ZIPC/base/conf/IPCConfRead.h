@@ -2,6 +2,7 @@
 // filename : 	confread.h
 // describ:		bind log function
 // version:   	1.0V
+// Copyright:   Copyright (c) 2018 zilliz
 ************************************************************************************************/
 #pragma once
 

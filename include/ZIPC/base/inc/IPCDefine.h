@@ -2,6 +2,7 @@
 // filename : 	ipcdefine.h
 // describ:		define for ipc
 // version:   	1.0V
+// Copyright:   Copyright (c) 2018 zilliz
 ************************************************************************************************/
 #pragma once
 

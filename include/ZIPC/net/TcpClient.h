@@ -2,6 +2,7 @@
 // filename : 	tcpclient.h
 // describ:		tcp net
 // version:   	1.0V
+// Copyright:   Copyright (c) 2018 zilliz
 ************************************************************************************************/
 #pragma once
 

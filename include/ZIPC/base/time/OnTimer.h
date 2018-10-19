@@ -2,6 +2,7 @@
 // filename : 	OnTimer.h
 // describ:		ontimer
 // version:   	1.0V
+// Copyright:   Copyright (c) 2018 zilliz
 ************************************************************************************************/
 #pragma once
 

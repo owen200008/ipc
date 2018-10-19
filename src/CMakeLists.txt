@@ -56,6 +56,8 @@ set(base_src
 )
 
 set(net_src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/net/version.h
+
     ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/NetThread.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/NetThread.h
     ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/net/TcpThreadSocket.cpp

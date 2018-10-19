@@ -2,6 +2,7 @@
 // filename : 	TcpThreadSocketClient.h
 // describ:		tcp socket link
 // version:   	1.0V
+// Copyright:   Copyright (c) 2018 zilliz
 ************************************************************************************************/
 #pragma once
 

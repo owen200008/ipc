@@ -2,6 +2,7 @@
 // filename : 	BitStream.h
 // describ:		auto change length
 // version:   	1.0V
+// Copyright:   Copyright (c) 2018 zilliz
 ************************************************************************************************/
 #pragma once
 
