@@ -20,11 +20,10 @@ public:
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //inner netthread call
     //! 
-    int32_t Connect(const sockaddr_storage& addr, int addrlen);
+    void ConnectWaitEvent(evutil_socket_t socketfd);
 
-protected:
     //!
-    virtual void ClearMemberData();
+    void ConnectSuccess(evutil_socket_t socketfd);
 };
 
 __NS_ZILLIZ_IPC_END

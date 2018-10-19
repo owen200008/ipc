@@ -48,8 +48,8 @@ set(base_src
     ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/base/mem/SmartBuffer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/base/mem/SmartBuffer.h
 
-    ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/base/mt/SpinLock.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/base/mt/SpinLock.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/base/mem/BitStream.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/base/mem/BitStream.h
 
     ${CMAKE_CURRENT_SOURCE_DIR}/ZIPC/base/time/OnTimer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/ZIPC/base/time/OnTimer.h

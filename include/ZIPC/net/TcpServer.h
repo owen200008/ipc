@@ -58,15 +58,13 @@ protected:
 
 class TcpServer : public NetBaseObject {
 public:
-    typedef void(*FuncCreateSession)(std::shared_ptr<TcpServerSession>&);
-public:
     virtual ~TcpServer();
 
     static std::shared_ptr<TcpServer> CreateTcpServer() {
         return std::shared_ptr<TcpServer>(new TcpServer());
     }
     //! must be call first [IPv6Address]:port || IPv4Address:port
-    int32_t InitTcpServer(const char* lpszAddress, const FuncCreateSession func);
+    int32_t InitTcpServer(const char* lpszAddress, const std::function<void(std::shared_ptr<TcpServerSession>&)>& func);
 
     //! 
     bool IsListen();
@@ -81,6 +79,9 @@ public:
     void Shutdown();
 
     //!
+    bool IsShutdown();
+
+    //!
     std::shared_ptr<TcpServerSession> GetSessionBySessionID(uint32_t nSessionID);
 protected:
     TcpServer();
@@ -91,9 +92,8 @@ protected:
     void DelSessionMap(uint32_t nSessionID);
 protected:
     TcpThreadAccept*	                                            m_pSocket = nullptr;
-    FuncCreateSession                                               m_createSessionFunc;
+    std::function<void(std::shared_ptr<TcpServerSession>&)>         m_createSessionFunc;
 
-    uint32_t                                                        m_nClientSessionMgr = 0;
     bool                                                            m_bAddrSuccess = false;
     sockaddr_storage                                                m_addr;
     int                                                             m_addrlen = sizeof(sockaddr_storage);

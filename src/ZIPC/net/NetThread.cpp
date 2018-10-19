@@ -34,7 +34,6 @@ void NetThread::Init(uint16_t nIndex, struct event_config *cfg){
         LogFuncLocation(IPCLog_Throw, "create evutil_socketpair error");
 		return;
 	}
-    m_nIndex = nIndex;
 
 	evutil_make_socket_nonblocking(m_pair[0]);
 	evutil_make_socket_nonblocking(m_pair[1]);
@@ -64,14 +63,14 @@ void NetThread::EventLoop(){
 
 //!
 void NetThread::SetEvent(const std::shared_ptr<NetBaseObject>& pSession, const std::function<void()>& func){
-    //may be loop if call on same thread
+    //may be loop if call on same thread so change thread
     /*if(std::this_thread::get_id() == m_thread_worker_ptr->get_id()){
         setEvent.m_callback(setEvent.m_pSession, setEvent.m_lRevert);
         return;
     }*/
     int nSize = 0;
     {
-        CSpinLockFunc lock(&m_lockEvent, true);
+        std::lock_guard<std::mutex> lock(m_lockEvent);
         nSize = m_vtEvent.size();
         m_vtEvent.push_back(std::move(NetThreadEvent(pSession, func)));
     }
@@ -94,7 +93,7 @@ void NetThread::RunMessageQueue(){
     while ((nReceived = recv(m_pair[0], szBuf, NotifyEventBufferSize, 0)) == NotifyEventBufferSize) {
     }
     {
-        CSpinLockFunc lock(&m_lockEvent, true);
+        std::lock_guard<std::mutex> lock(m_lockEvent);
         swap(m_vtEvent, m_vtEventRun);
     }
     for (auto& setEvent : m_vtEventRun) {

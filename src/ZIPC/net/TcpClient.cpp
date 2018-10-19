@@ -81,30 +81,76 @@ int32_t TcpClient::Connect(const char* lpszAddress) {
 int32_t TcpClient::DoConnect() {
     if (!m_bAddrSuccess)
         return BASIC_NET_INVALID_ADDRESS;
-    std::promise<int32_t> promiseObj;
-    auto future = promiseObj.get_future();
-    
-    m_pNetThread->SetEvent(shared_from_this(), [this, &promiseObj]() {
-        promiseObj.set_value(((TcpThreadSocketClient*)m_pSocket)->Connect(m_addr, m_addrlen));
-    });
-    return future.get();
+    uint8_t statLink = m_pSocket->GetStatLink();
+    if (statLink != TIL_SS_IDLE) {
+        int32_t lRet = BASIC_NET_GENERIC_ERROR;
+        switch (statLink) {
+        case TIL_SS_CONNECTING: {
+            lRet = BASIC_NET_CONNECTING_ERROR;
+            break;
+        }
+        case TIL_SS_CONNECTED: {
+            lRet = BASIC_NET_ALREADY_CONNECT;
+            break;
+        }
+        }
+        return lRet;
+    }
+    int32_t lReturn = BASIC_NET_OK;
+    evutil_socket_t socketfd = INVALID_SOCKET;
+    do {
+        evutil_socket_t socketfd = socket(m_addr.ss_family, SOCK_STREAM, 0);
+        if (socketfd == INVALID_SOCKET) {
+            lReturn = BASIC_NET_SOCKET_ERROR;
+            break;
+        }
+        evutil_make_socket_nonblocking(socketfd);
+        evutil_make_listen_socket_reuseable(socketfd);
+        evutil_make_listen_socket_reuseable_port(socketfd);
+        int nRet = connect(socketfd, (::sockaddr*)&m_addr, m_addrlen);
+        if (nRet == 0) {
+            m_pNetThread->SetEvent(shared_from_this(), [this, socketfd]() {
+                auto p = (TcpThreadSocketClient*)m_pSocket;
+                p->ConnectSuccess(socketfd);
+            });
+        }
+#ifdef _MSC_VER
+        else if (errno == EINPROGRESS || WSAGetLastError() == WSAEWOULDBLOCK) {
+#else
+        else if (errno == EINPROGRESS) {
+#endif
+
+            m_pNetThread->SetEvent(shared_from_this(), [this, socketfd]() {
+                auto p = (TcpThreadSocketClient*)m_pSocket;
+                p->ConnectWaitEvent(socketfd);
+            });
+        }
+        else {
+            //int nRetErrorNo = errno;
+            lReturn = BASIC_NET_GENERIC_ERROR;
+        }
+    } while (0);
+
+    if (lReturn != BASIC_NET_OK && socketfd != INVALID_SOCKET) {
+        evutil_closesocket(socketfd);
+    }
+    return BASIC_NET_OK;
 }
 
 //! shutdown
-bool TcpClient::Shutdown() {
-    std::promise<int32_t> promiseObj;
-    auto future = promiseObj.get_future();
-    m_pNetThread->SetEvent(shared_from_this(), [this, &promiseObj]() {
-        int32_t retValue = BASIC_NET_OK;
+void TcpClient::Shutdown() {
+    m_pNetThread->SetEvent(shared_from_this(), [this]() {
         if (m_pSocket) {
-            if (m_pSocket->Close() == BASIC_NET_OK) {
-                delete m_pSocket;
-                m_pSocket = nullptr;
-            }
+            m_pSocket->Shutdown();
+            delete m_pSocket;
+            m_pSocket = nullptr;
         }
-        promiseObj.set_value(retValue);
     });
-    return future.get() == BASIC_NET_OK;
+}
+
+//!
+bool TcpClient::IsShutdown() {
+    return m_pSocket == nullptr;
 }
 
 __NS_ZILLIZ_IPC_END

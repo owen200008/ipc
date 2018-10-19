@@ -32,11 +32,11 @@ public:
 	void LogFunc(IPCLogType type, _Types&&... _Args){
         std::stringstream stream;
         LogStream(stream, _Args...);
+        stream << std::endl;
         if (m_logFunc) {
             m_logFunc(type, stream.str().c_str());
         }
         else {
-            stream << std::endl;
             printf(stream.str().c_str());
         }
 	}

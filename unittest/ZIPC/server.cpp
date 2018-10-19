@@ -2,30 +2,137 @@
 #include <stdio.h>
 #include <thread>
 #include "ZIPC/net/NetMgr.h"
+#include "ZIPC/base/log/IPCLog.h"
+#include "ZIPC/base/conf/IPCConfRead.h"
+#include "ZIPC/base/time/OnTimer.h"
+#include "ZIPC/base/mem/BitStream.h"
 #include "ZIPC/net/TcpServer.h"
 
-#define CLIENTSESSIONDISPATH            3
-int main(){
-    //must init before use net
-    zilliz::lib::NetMgr::GetInstance().Initialize();
+#include "tcpdefinetest.h"
+
+class TcpServerSessionTest : public zilliz::lib::TcpServerSession {
+public:
+    virtual ~TcpServerSessionTest() {
+
+    }
+
+    //!
+    static std::shared_ptr<TcpServerSession> CreateTcpServerSessionTest(const std::shared_ptr<char>& pSendData, uint32_t nLength) {
+        auto p = new TcpServerSessionTest();
+        p->m_pSendData = pSendData;
+        p->m_nSendLength = nLength;
+        return std::shared_ptr<TcpServerSession>(p);
+    }
+
+    bool CheckReceive() {
+        auto nReceiveLength = m_receive.GetDataLength();
+        if (nReceiveLength > 0) {
+            if (m_nCheckLength + nReceiveLength > m_nSendLength) {
+                printf("error receive too much %d %d %d\n", m_nCheckLength, nReceiveLength, m_nSendLength);
+                return false;
+            }
+            char* pBuffer = m_pSendData.get();
+            if (memcmp(pBuffer + m_nCheckLength, m_receive.GetDataBuffer(), nReceiveLength) != 0) {
+                printf("check buffer error %d %d %d\n", m_nCheckLength, nReceiveLength, m_nSendLength);
+                return false;
+            }
+            m_receive.SetDataLength(0);
+            m_nCheckLength += nReceiveLength;
+            if (m_nCheckLength == m_nSendLength) {
+                printf("check finish close!\n");
+                Close();
+            }
+        }
+        return true;
+    }
+
+    bool                    m_bAuth = false;
+    bool                    m_bReceiveSuccess = false;
+    uint32_t                m_nActionIndex = 0;
+
+    uint32_t                m_nCheckLength = 0;
+    std::shared_ptr<char>   m_pSendData;
+    uint32_t                m_nSendLength = 0;
+    //receive
+    zilliz::lib::BitStream  m_receive;
+
+    //use only in callback
+    zilliz::lib::BitStream  m_send;
+protected:
+    TcpServerSessionTest() {
+        m_nActionIndex = m_allocateActionIndex.fetch_add(1);
+    }
+
+    static std::atomic<uint32_t> m_allocateActionIndex;
+};
+
+std::atomic<uint32_t> TcpServerSessionTest::m_allocateActionIndex = { 0 };
+
+void StartServerSend(const char* pListen, std::shared_ptr<char> pSendData, uint32_t nLength) {
     do {
-        const char* pListen = "0.0.0.0:19999";
+        //init ontimer
+        zilliz::lib::OnTimer ipcOnTimer;
+        if (!ipcOnTimer.InitTimer()) {
+            printf("InitTimer error\n");
+            break;
+        }
+
         auto pServer = zilliz::lib::TcpServer::CreateTcpServer();
-        auto retInitServer = pServer->InitTcpServer(pListen, [](std::shared_ptr<zilliz::lib::TcpServerSession>& pSession) {
-            pSession = zilliz::lib::TcpServerSession::CreateTcpServerSession();
-            pSession->bind_connect([](zilliz::lib::NetSessionNotify* pSession)->int32_t {
-                auto nSessionID = ((zilliz::lib::TcpServerSession*)pSession)->GetSessionID();
-                printf("Connect session %d\n", nSessionID);
-                if (nSessionID % CLIENTSESSIONDISPATH == 0)
-                    return BASIC_NET_GENERIC_ERROR;
+        auto retInitServer = pServer->InitTcpServer(pListen, [&](std::shared_ptr<zilliz::lib::TcpServerSession>& pSession) {
+            pSession = TcpServerSessionTest::CreateTcpServerSessionTest(pSendData, nLength);
+
+            pSession->bind_connect([&](zilliz::lib::NetSessionNotify* pNotify)->int32_t {
+                TcpServerSessionTest* pSession = (TcpServerSessionTest*)pNotify;
+                switch (pSession->m_nActionIndex % TCPTestUseCaseServerSendFirst_Max) {
+                case TCPTestUseCaseServerSendFirst_ConnectCloseByServer:
+                    pSession->Close();
+                    break;
+                case TCPTestUseCaseServerSendFirst_ConnectSendIndexCloseByServer: {
+                    pSession->m_send.SetDataLength(0);
+                    pSession->m_send << pSession->m_nActionIndex;
+                    pSession->Send(pSession->m_send.GetDataBuffer(), pSession->m_send.GetDataLength());
+                    pSession->Close();
+                    break;
+                }
+                default:
+                    pSession->m_send.SetDataLength(0);
+                    pSession->m_send << pSession->m_nActionIndex;
+                    pSession->Send(pSession->m_send.GetDataBuffer(), pSession->m_send.GetDataLength());
+                }
                 return BASIC_NET_OK;
             });
-            pSession->bind_rece([](zilliz::lib::NetSessionNotify* pSession, int32_t cbData, const char * pData)->int32_t {
-                auto nSessionID = ((zilliz::lib::TcpServerSession*)pSession)->GetSessionID();
-                if (nSessionID % CLIENTSESSIONDISPATH == 1) {
-                    pSession->Close();
+            pSession->bind_rece([&](zilliz::lib::NetSessionNotify* pNotify, int32_t cbData, const char* pData)->int32_t {
+                TcpServerSessionTest* pSession = (TcpServerSessionTest*)pNotify;
+                pSession->m_receive.AppendData(pData, cbData);
+
+                switch (pSession->m_nActionIndex % TCPTestUseCaseServerSendFirst_Max) {
+                case TCPTestUseCaseServerSendFirst_ConnectCloseByServer: {
+                    printf("TCPTestUseCaseServerSendFirst_ConnectCloseByServer error(%d)\n", pSession->m_nActionIndex);
+                    break;
                 }
-                pSession->Send(pData, cbData);
+                default:{
+                    if (!pSession->m_bAuth) {
+                        if (pSession->m_receive.GetDataLength() < 4) {
+                            printf("%d auth error (%d)\n", pSession->m_nActionIndex % TCPTestUseCaseServerSendFirst_Max, cbData);
+                            pSession->Close();
+                            break;
+                        }
+                        uint32_t nActionIndex = 0;
+                        pSession->m_receive >> nActionIndex;
+                        if (nActionIndex != pSession->m_nActionIndex) {
+                            printf("%d nActionIndex error %d(%d)\n", pSession->m_nActionIndex % TCPTestUseCaseServerSendFirst_Max, pSession->m_nActionIndex, nActionIndex);
+                            pSession->Close();
+                            break;
+                        }
+                        pSession->m_bAuth = true;
+                        pSession->Send(pSession->m_pSendData, pSession->m_nSendLength);
+                    }
+                    //deal with data
+                    pSession->CheckReceive();
+                    break;
+                }
+
+                }
                 return BASIC_NET_OK;
             });
             pSession->bind_disconnect([](zilliz::lib::NetSessionNotify* pSession, uint32_t dwNetCode)->int32_t {
@@ -48,11 +155,51 @@ int main(){
             break;
         }
         printf("Listen OK %s\n", pListen);
+
         getchar();
-        //wait close
+
+        if (pServer->IsShutdown()) {
+            pServer->Shutdown();
+            std::chrono::milliseconds dura(10000);
+            std::this_thread::sleep_for(dura);
+        }
         pServer->Shutdown();
     } while (false);
+}
+
+int main(){
+    //bind log function
+    zilliz::lib::IPCLog::GetInstance().BindLogFunc([](zilliz::lib::IPCLogType, const char* pLog) {
+        printf(pLog);
+    });
+    //bind read conf
+    zilliz::lib::IPCConfRead::GetInstance().BindConfReadFunc([](const char* pSection, const char* pKey)->const char* {
+        return nullptr;
+    });
+
+    //must init before use net
+    zilliz::lib::NetMgr::GetInstance().Initialize();
     
+    std::shared_ptr<char> pSendData;
+    uint32_t nSendLength = 0;
+    do {
+        FILE* fp = fopen("E:/github/ipc/send.dat", "r");
+        if (!fp) {
+            printf("read file error\n");
+            break;
+        }
+        fseek(fp, 0, SEEK_END);
+        long lLength = ftell(fp);
+        fseek(fp, 0, SEEK_SET);
+        if (lLength > 0) {
+            nSendLength = lLength;
+            pSendData = std::shared_ptr<char>(new char[lLength]);
+            fread(pSendData.get(), sizeof(char), lLength, fp);
+        }
+        fclose(fp);
+        StartServerSend("0.0.0.0:19999", pSendData, nSendLength);
+    } while (0);
+
     getchar();
     zilliz::lib::NetMgr::GetInstance().CloseNetSocket();
 	return 0;

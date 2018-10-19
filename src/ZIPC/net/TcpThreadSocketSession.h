@@ -16,9 +16,12 @@ public:
     TcpThreadSocketSession(NetThread* pThread);
     virtual ~TcpThreadSocketSession();
 
+    //!
+    const char* GetPeerAddressPort(uint32_t& nPort);
 protected:
-    char					        m_szPeerAddr[ADDRESS_MAX_LENGTH];
-    uint32_t				        m_nPeerPort;
+    //port to acquire & release memory order
+    char					                    m_szPeerAddr[ADDRESS_MAX_LENGTH];
+    std::atomic<uint32_t>				        m_nPeerPort;
 public:
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //inner netthread call

@@ -47,26 +47,20 @@ void TcpThreadSocket::Send(const SocketSendBuf& buf) {
         SendDataFromQueue();
     }
 }
-
-//!
-int32_t TcpThreadSocket::Close() {
-    if (m_socketfd == INVALID_SOCKET)
-        return BASIC_NET_OK;
-    if (!OnClose()) {
-        return BASIC_NET_CLOSE_WAITCLOSE;
+void TcpThreadSocket::SendNoSend(const SocketSendBuf& buf) {
+    if (IsConnected()) {
+        m_qSocketBuf.push(std::move(buf));
     }
-    return BASIC_NET_OK;
 }
 
 //!
-bool TcpThreadSocket::Shutdown() {
-    if (m_socketfd != INVALID_SOCKET) {
-        LogFuncLocation(IPCLog_Error, "ITCPSocket::Shutdown m_socketfd != INVALID_SOCKET");
-        return false;
-    }
-    //ref del
-    m_pNotify = nullptr;
-    return true;
+void TcpThreadSocket::Close() {
+    OnClose(false);
+}
+
+//!
+void TcpThreadSocket::Shutdown() {
+    OnClose(false, true);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -78,6 +72,7 @@ void TcpThreadSocket::ClearMemberData() {
     m_socketfd = INVALID_SOCKET;
     m_statTransmit = TIL_SS_SHAKEHANDLE_IDLE;
     m_statLink = TIL_SS_IDLE;
+    m_bToClose = false;
     IPCQueue<SocketSendBuf> queuetmp;
     swap(queuetmp, m_qSocketBuf);
     m_nReadySendBufferLength = 0;
@@ -90,9 +85,6 @@ void TcpThreadSocket::OnConnect() {
     //
     if (lRet == BASIC_NET_OK) {
         m_statTransmit = TIL_SS_SHAKEHANDLE_TRANSMIT;
-    }
-    else if (lRet == BASIC_NET_GENERIC_ERROR) {
-        OnClose();
     }
 }
 
@@ -124,25 +116,27 @@ bool TcpThreadSocket::ReadBuffer(int16_t lSend) {
         m_nReadySendBufferLength = nLeft;
     }
     else{
+        char* pCopy = m_szReadySendBuffer;
         int16_t nRevert = READBUFFERSIZE_MSG;
         while (m_qSocketBuf.size() > 0 && nRevert > 0) {
             auto& data = m_qSocketBuf.front();
             int32_t nDataLength = data.m_nLength - data.m_nReadLength;
             if (nDataLength > nRevert) {
-                memcpy(m_szReadySendBuffer, &data.m_pBuffer.get()[data.m_nReadLength], nRevert);
+                memcpy(pCopy, &data.m_pBuffer.get()[data.m_nReadLength], nRevert);
                 data.m_nReadLength += nRevert;
                 nRevert = 0;
                 break;
             }
             else if (nDataLength == nRevert) {
-                memcpy(m_szReadySendBuffer, &data.m_pBuffer.get()[data.m_nReadLength], nRevert);
+                memcpy(pCopy, &data.m_pBuffer.get()[data.m_nReadLength], nRevert);
                 m_qSocketBuf.pop();
                 nRevert = 0;
                 break;
             }
             else {
-                memcpy(m_szReadySendBuffer, &data.m_pBuffer.get()[data.m_nReadLength], nDataLength);
+                memcpy(pCopy, &data.m_pBuffer.get()[data.m_nReadLength], nDataLength);
                 nRevert -= nDataLength;
+                pCopy += nDataLength;
                 m_qSocketBuf.pop();
             }
         }
@@ -197,20 +191,21 @@ void TcpThreadSocket::SendDataFromQueue() {
     }
     else {
         OnSendData(nTotalSend);
+        if (m_bToClose) {
+            OnClose();
+        }
     }
 }
 
-bool TcpThreadSocket::OnClose(bool bRemote) {
-    if (m_socketfd == INVALID_SOCKET) {
-        return true;
-    }
-    if (CanClose() || bRemote) {
-        ClearMemberData();
+void TcpThreadSocket::OnClose(bool bRemote, bool bCloseNoCheck) {
+    if (m_socketfd != INVALID_SOCKET) {
+        m_bToClose = true;
+        if (CanClose() || bRemote || bCloseNoCheck) {
+            ClearMemberData();
 
-        OnDisconnect(bRemote ? BASIC_NETCODE_CLOSE_REMOTE : 0);
-        return true;
+            OnDisconnect(bRemote ? BASIC_NETCODE_CLOSE_REMOTE : 0);
+        }
     }
-    return false;
 }
 ///////////////////////////////////////////////////////////////////////////////
 /*

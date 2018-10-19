@@ -5,7 +5,6 @@
 ************************************************************************************************/
 #pragma once
 #include "ZIPC/base/inc/IPCDefine.h"
-#include "ZIPC/base/mt/SpinLock.h"
 #include "ZIPC/net/NetBaseObject.h"
 #include "event.h"
 #include "evdns.h"
@@ -37,18 +36,14 @@ public:
 
     //! is same thread
     bool IsSameThread();
-
-    //!get weight
-    uint32_t GetWeight() { return m_nWeight; }
 protected:
     //! get queue msg
     void RunMessageQueue();
 
     void EventLoop();
 public:
-    uint16_t                                    m_nIndex;
     std::shared_ptr<std::thread>                m_thread_worker_ptr;
-    SpinLock                                    m_lockEvent;
+    std::mutex                                  m_lockEvent;
     IPCVector<NetThreadEvent>                   m_vtEvent;
     IPCVector<NetThreadEvent>                   m_vtEventRun;
 
@@ -56,9 +51,6 @@ public:
     struct event_base*				            m_base = nullptr;
     struct evdns_base*				            m_dnsbase = nullptr;
     struct event					            notify_event;
-
-    //weight
-    volatile uint32_t                           m_nWeight = 0;
 };
 
 

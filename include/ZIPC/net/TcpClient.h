@@ -22,11 +22,14 @@ public:
     virtual ~TcpClient();
 
     //! 
-    static std::shared_ptr<TcpClient> CreateTcpServerSession() {
+    static std::shared_ptr<TcpClient> CreateTcpClient() {
         auto pClient = std::shared_ptr<TcpClient>(new TcpClient());
         pClient->InitTcpClient();
         return pClient;
     }
+
+    //! must be call first
+    void InitTcpClient();
 
     //! [IPv6Address]:port || IPv4Address:port
     virtual int32_t Connect(const char* lpszAddress);
@@ -35,12 +38,12 @@ public:
     int32_t DoConnect();
 
     //! shutdown
-    bool Shutdown();
+    void Shutdown();
+
+    //!
+    bool IsShutdown();
 protected:
     TcpClient();
-
-    //! must be call first
-    void InitTcpClient();
 
     //!
     virtual TcpThreadSocket * GetThreadSocket() override;

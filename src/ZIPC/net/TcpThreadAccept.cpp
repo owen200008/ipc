@@ -11,6 +11,9 @@ __NS_ZILLIZ_IPC_START
 ///////////////////////////////////////////////////////////////////////////////
 TcpThreadAccept::TcpThreadAccept(NetThread* pThread) {
     m_pThread = pThread;
+    m_vtThreadReuseSessionID.reserve(128);
+    m_vtReuseSessionID.reserve(128);
+    m_vtReuseSessionIDRun.reserve(128);
 }
 
 TcpThreadAccept::~TcpThreadAccept() {
@@ -19,50 +22,22 @@ TcpThreadAccept::~TcpThreadAccept() {
     }
 }
 
+//!
+void TcpThreadAccept::ReuseSessionID(uint32_t nSessionID) {
+    std::lock_guard<std::mutex> lock(m_lockReuse);
+    m_vtReuseSessionID.push_back(nSessionID);
+}
 ///////////////////////////////////////////////////////////////////////////////
 void TcpThreadAccept::InitTcpSocket(std::shared_ptr<TcpServer>& pSession) {
     m_pNotify = pSession;
 }
 
 //!
-int32_t TcpThreadAccept::Listen(const sockaddr_storage& addr, int addrlen) {
-    if (IsListen()) {
-        return BASIC_NET_ALREADY_LISTEN;
-    }
-    int32_t lReturn = BASIC_NET_OK;
-    evutil_socket_t socketfd = INVALID_SOCKET;
-    do {
-        socketfd = socket(addr.ss_family, SOCK_STREAM, 0);
-        if (socketfd == INVALID_SOCKET) {
-            lReturn = BASIC_NET_SOCKET_ERROR;
-            break;
-        }
-        evutil_make_socket_nonblocking(socketfd);
-        evutil_make_listen_socket_reuseable(socketfd);
-        evutil_make_listen_socket_reuseable_port(socketfd);
-        // bind our name to the socket
-        int nRet = ::bind(socketfd, (::sockaddr*)&addr, addrlen);   //I know this
-        if (nRet != 0) {
-            lReturn = BASIC_NET_BIND_ERROR;
-            break;
-        }
-        // Set the socket to listen
-        nRet = listen(socketfd, 0x7fffffff);
-        if (nRet != 0) {
-            lReturn = BASIC_NET_LISTEN_ERROR;
-            break;
-        }
-    } while (0);
-    if (lReturn == BASIC_NET_OK) {
-        m_socketfd = socketfd;
-        event_set(&m_revent, m_socketfd, EV_READ | EV_PERSIST, OnLinkListenRead, this);
-        event_base_set(m_pThread->m_base, &m_revent);
-        event_add(&m_revent, NULL);
-    }
-    else if (socketfd != INVALID_SOCKET) {
-        evutil_closesocket(socketfd);
-    }
-    return lReturn;
+void TcpThreadAccept::Listen(evutil_socket_t socketfd) {
+    m_socketfd = socketfd;
+    event_set(&m_revent, m_socketfd, EV_READ | EV_PERSIST, OnLinkListenRead, this);
+    event_base_set(m_pThread->m_base, &m_revent);
+    event_add(&m_revent, NULL);
 }
 
 //!
@@ -86,6 +61,7 @@ void TcpThreadAccept::OnAccept() {
     }
     std::shared_ptr<TcpServerSession> pClientSession;
     m_pNotify->ConstructSession(pClientSession);
+    pClientSession->InitTcpServerSession(CreateClientSessionID(), m_pNotify);
     //create and add map
     m_pNotify->AddSessionMap(pClientSession);
 
@@ -100,6 +76,29 @@ void TcpThreadAccept::OnAccept() {
             pSessionSocket->Accept(s, addr, addrlen);
         });
     }
+}
+
+//!
+uint32_t TcpThreadAccept::CreateClientSessionID() {
+    uint32_t nRet = 0;
+    if (m_vtThreadReuseSessionID.size() > 0) {
+        nRet = m_vtThreadReuseSessionID.back();
+        m_vtThreadReuseSessionID.pop_back();
+    }
+    else {
+        nRet = m_nClientSessionMgr++;
+        if (nRet % 100 == 99) {
+            {
+                std::lock_guard<std::mutex> lock(m_lockReuse);
+                swap(m_vtReuseSessionIDRun, m_vtReuseSessionID);
+            }
+            if (m_vtReuseSessionID.size() > 0) {
+                m_vtThreadReuseSessionID.insert(m_vtThreadReuseSessionID.end(), m_vtReuseSessionIDRun.begin(), m_vtReuseSessionIDRun.end());
+                m_vtReuseSessionIDRun.clear();
+            }
+        }
+    }
+    return nRet;
 }
 ///////////////////////////////////////////////////////////////////////////////
 void OnLinkListenRead(evutil_socket_t fd, short event, void *arg) {

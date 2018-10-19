@@ -14,6 +14,12 @@ TcpThreadSocketSession::TcpThreadSocketSession(NetThread* pThread) : TcpThreadSo
 TcpThreadSocketSession::~TcpThreadSocketSession() {
 }
 
+//!
+const char* TcpThreadSocketSession::GetPeerAddressPort(uint32_t& nPort) {
+    nPort = m_nPeerPort.load();
+    return m_szPeerAddr;
+}
+
 //! 
 int32_t TcpThreadSocketSession::Accept(evutil_socket_t s, const sockaddr_storage& addr, int addrlen) {
     sockaddr* pAddr = (sockaddr*)&addr;
@@ -21,14 +27,14 @@ int32_t TcpThreadSocketSession::Accept(evutil_socket_t s, const sockaddr_storage
     if (nFamily == AF_INET) {
         char szBuf[128] = { 0 };
         sockaddr_in* pSockAddr = (struct sockaddr_in*)pAddr;
-        m_nPeerPort = ntohs(pSockAddr->sin_port);		//I know this
         strncpy(m_szPeerAddr, evutil_inet_ntop(AF_INET, &pSockAddr->sin_addr, szBuf, sizeof(szBuf)), ADDRESS_MAX_LENGTH);		//I know this
+        m_nPeerPort.store(ntohs(pSockAddr->sin_port));		//I know this
     }
     else {
         char szBuf[128] = { 0 };
         sockaddr_in6* pSockAddr = (struct sockaddr_in6*)pAddr;
-        m_nPeerPort = ntohs(pSockAddr->sin6_port);		//I know this
         strncpy(m_szPeerAddr, evutil_inet_ntop(AF_INET6, &pSockAddr->sin6_addr, szBuf, sizeof(szBuf)), ADDRESS_MAX_LENGTH);		//I know this
+        m_nPeerPort.store(ntohs(pSockAddr->sin6_port));		//I know this
     }
 
     evutil_make_socket_nonblocking(s);

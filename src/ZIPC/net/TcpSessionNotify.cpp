@@ -72,34 +72,55 @@ bool NetSessionNotify::IsTransmit() {
     return GetThreadSocket()->IsTransmit();
 }
 
-bool NetSessionNotify::Close(){
+void NetSessionNotify::Close(){
     //no check socketid inner thread check
-    std::promise<int32_t> promiseObj;
-    auto future = promiseObj.get_future();
-    
-    m_pNetThread->SetEvent(shared_from_this(), [&promiseObj, this](){
-        promiseObj.set_value(GetThreadSocket()->Close());
+    m_pNetThread->SetEvent(shared_from_this(), [this]() {
+        GetThreadSocket()->Close();
     });
-    return future.get() == BASIC_NET_OK;
 }
 
+int32_t NetSessionNotify::SendNoNotify(const char *pData, int32_t cbData) {
+    if (!IsConnected())
+        return BASIC_NET_NO_CONNECT;
+
+    SocketSendBuf sendBuf(pData, cbData);
+    if (m_pNetThread->IsSameThread()) {
+        GetThreadSocket()->SendNoSend(sendBuf);
+    }
+    else {
+        m_pNetThread->SetEvent(shared_from_this(), [this, sendBuf]() {
+            GetThreadSocket()->SendNoSend(sendBuf);
+        });
+    }
+    return BASIC_NET_OK;
+}
 int32_t NetSessionNotify::Send(const char *pData, int32_t cbData) {
     if (!IsConnected())
         return BASIC_NET_NO_CONNECT;
 
     SocketSendBuf sendBuf(pData, cbData);
-    m_pNetThread->SetEvent(shared_from_this(), [this, sendBuf]() {
+    if (m_pNetThread->IsSameThread()) {
         GetThreadSocket()->Send(sendBuf);
-    });
+    }
+    else {
+        m_pNetThread->SetEvent(shared_from_this(), [this, sendBuf]() {
+            GetThreadSocket()->Send(sendBuf);
+        });
+    }
     return BASIC_NET_OK;
 }
 int32_t NetSessionNotify::Send(const std::shared_ptr<char>& pData, int32_t cbData) {
     if (!GetThreadSocket()->IsConnected())
         return BASIC_NET_NO_CONNECT;
     SocketSendBuf sendBuf(pData, cbData);
-    m_pNetThread->SetEvent(shared_from_this(), [this, sendBuf]() {
+    if (m_pNetThread->IsSameThread()) {
         GetThreadSocket()->Send(sendBuf);
-    });
+    }
+    else {
+        m_pNetThread->SetEvent(shared_from_this(), [this, sendBuf]() {
+            GetThreadSocket()->Send(sendBuf);
+        });
+    }
     return BASIC_NET_OK;
 }
 

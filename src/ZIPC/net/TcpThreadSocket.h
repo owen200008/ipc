@@ -53,28 +53,28 @@ public:
     //! thread safe
     void InitTcpSocket(std::shared_ptr<NetSessionNotify>& pSession){ m_pNotify = pSession; }
 
-    //get socketid
-    evutil_socket_t & GetSocketID() { return m_socketfd; }
-
     //!
     bool IsConnected();
     //!
     bool IsTransmit();
+    //!
+    uint8_t GetStatLink() { return m_statLink; }
 protected:
-    //better way to set the volatile
-    uint8_t                                 m_statTransmit = TIL_SS_SHAKEHANDLE_IDLE;
-    uint8_t                                 m_statLink = TIL_SS_IDLE;
+    //! I know this(it is just state oper in the netthread so it is safe memory order)
+    volatile uint8_t                                m_statTransmit = TIL_SS_SHAKEHANDLE_IDLE;
+    volatile uint8_t                                m_statLink = TIL_SS_IDLE; 
 public:
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //inner netthread call
     //!
     void Send(const SocketSendBuf& buf);
+    void SendNoSend(const SocketSendBuf& buf);//for test
 
     //!
-    int32_t Close();
+    void Close();
 
     //!
-    bool Shutdown();
+    void Shutdown();
 protected:
     void OnReadEvent();
     void OnWriteEvent();
@@ -91,7 +91,7 @@ protected:
     //! 
     bool CanClose();
 
-    bool OnClose(bool bRemote = false);
+    void OnClose(bool bRemote = false, bool bCloseNoCheck = false);
 
     friend void OnLinkRead(evutil_socket_t fd, short event, void *arg);
     friend void OnLinkWrite(evutil_socket_t fd, short event, void *arg);
@@ -107,6 +107,7 @@ protected:
     IPCQueue<SocketSendBuf>                 m_qSocketBuf;
     char                                    m_szReadySendBuffer[READBUFFERSIZE_MSG];
     int16_t                                 m_nReadySendBufferLength = 0;
+    bool                                    m_bToClose = false;
 };
 
 void OnLinkRead(evutil_socket_t fd, short event, void *arg);

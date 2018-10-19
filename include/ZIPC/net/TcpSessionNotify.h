@@ -32,16 +32,23 @@ struct  BasicNetStat{
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class NetSessionNotify : public NetBaseObject {
 public:
-    //! two reason no use std::function to define callback
-    //! 1. it can rebind callback function when you are in the callback(like receive data after auth)
-    //! 2. procedure oriented application layer is better
-    typedef int32_t(*FuncHandleConnect)(NetSessionNotify*);
-    typedef int32_t(*FuncHandleReceive)(NetSessionNotify*, int32_t, const char *);
-    typedef int32_t(*FuncHandleDisConnect)(NetSessionNotify*, uint32_t);
+    typedef std::function<int32_t(NetSessionNotify*)> FuncHandleConnect;
+    typedef std::function<int32_t(NetSessionNotify*, int32_t, const char *)> FuncHandleReceive;
+    typedef std::function<int32_t(NetSessionNotify*, uint32_t)> FuncHandleDisConnect;
+    
 
-    void bind_rece(const FuncHandleReceive& func){ m_funcReceive = func; }
-    void bind_connect(const FuncHandleConnect& func){ m_funcConnect = func; }
-    void bind_disconnect(const FuncHandleDisConnect& func){ m_funcDisconnect = func; }
+    void bind_rece(const FuncHandleReceive& func){ 
+        if(m_funcReceive == nullptr)
+            m_funcReceive = func; 
+    }
+    void bind_connect(const FuncHandleConnect& func){ 
+        if(m_funcConnect == nullptr)
+            m_funcConnect = func; 
+    }
+    void bind_disconnect(const FuncHandleDisConnect& func){ 
+        if(m_funcDisconnect == nullptr)
+            m_funcDisconnect = func; 
+    }
     const FuncHandleReceive GetBindRece(){ return m_funcReceive; }
     const FuncHandleConnect GetBindConnect(){ return m_funcConnect; }
     const FuncHandleDisConnect GetBindDisconnect(){ return m_funcDisconnect; }
@@ -68,10 +75,11 @@ public:
     }
 public:
     //! safe to delete shared_ptr when £¨close return true or after disconnect callback£©  
-    bool Close();
+    void Close();
 
-    virtual int32_t Send(const char *pData, int32_t cbData);
-    virtual int32_t Send(const std::shared_ptr<char>& pData, int32_t cbData);
+    int32_t Send(const char *pData, int32_t cbData);
+    int32_t Send(const std::shared_ptr<char>& pData, int32_t cbData);
+    int32_t SendNoNotify(const char *pData, int32_t cbData); //for test
 
     //! 
     bool IsConnected();

@@ -11,8 +11,9 @@
 #include <thread>
 #include <string>
 #include <atomic>
-#include <future>
+#include <mutex>
 #include <unordered_map>
+#include <unordered_set>
 
 //定义命名空间
 #define __NS_ZILLIZ_IPC_START	namespace zilliz { namespace lib {
@@ -35,4 +36,5 @@ typedef void(*pIPCFree)(void*);
 #define IPCMap              std::unordered_map
 #define IPCQueue            std::queue
 #define IPCString           std::string
+#define IPCSet              std::unordered_set
 

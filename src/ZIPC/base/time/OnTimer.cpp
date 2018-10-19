@@ -2,13 +2,11 @@
 #include <chrono>
 #include <thread>
 #include "ZIPC/base/log/IPCLog.h"
-#include "ZIPC/base/mt/SpinLock.h"
 #include <cstring>
 
 __NS_ZILLIZ_IPC_START
 //////////////////////////////////////////////////////////////////////////
 typedef void(*timer_execute_func)(void *ud, void *arg);
-
 
 /////////////////////////////////////////////////////////////////////////////////
 OnTimer::OnTimer(uint16_t nSleepMilliCount):m_dura(nSleepMilliCount){
@@ -18,17 +16,11 @@ OnTimer::OnTimer(uint16_t nSleepMilliCount):m_dura(nSleepMilliCount){
 	memset(m_t, 0, sizeof(link_list) * TIME_LEVEL * 4);
 	m_time = 0;
 	m_current_point = 0;
-
-	m_pMapNode = new MapTimerNode();
 }
 
 OnTimer::~OnTimer(){
 	if (!m_bTimerExit){
 		CloseTimer();
-	}
-	if (m_pMapNode){
-		delete m_pMapNode;
-		m_pMapNode = nullptr;
 	}
 }
 
@@ -40,7 +32,7 @@ void OnTimer::TimerRun(){
 }
 
 void OnTimer::TimerUpdate(){
-	uint64_t cp = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count() / 10;
+	uint64_t cp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() / m_dura.count();
 	if (cp < m_current_point){
         LogFuncLocation(IPCLog_Error, "time diff error: change from %lld to %lld", cp, m_current_point);
 		m_current_point = cp;
@@ -64,7 +56,7 @@ void OnTimer::TimerUpdate(){
 
 void OnTimer::timer_execute(std::unique_lock<std::mutex>& lock){
 	int idx = m_time & TIME_NEAR_MASK;
-	while (m_near[idx].head.next){
+	while (m_near[idx].m_head.m_next){
 		timer_node *current = link_clear(&m_near[idx]);
         lock.unlock();
 		// dispatch_list don't need lock T
@@ -99,7 +91,7 @@ void OnTimer::timer_shift(){
 void OnTimer::move_list(int level, int idx){
 	timer_node *current = link_clear(&m_t[level][idx]);
 	while (current){
-		timer_node *temp = current->next;
+		timer_node *temp = current->m_next;
 		add_node(current);
 		current = temp;
 	}
@@ -108,51 +100,53 @@ void OnTimer::move_list(int level, int idx){
 void OnTimer::dispatch_list(struct timer_node *current){
 	do
 	{
-		timer_event * event = (struct timer_event *)(current + 1);
+		//timer_event * event = (struct timer_event *)(current + 1);
 		if (current->m_bIsValid){
-			event->m_callbackFunc(event->m_nKey, event->m_pParam1);
+            current->m_callback(current->m_nKey);
 		}
 		timer_node* temp = current;
-		current = current->next;
+		current = current->m_next;
 		if (temp->m_nRepeatTime > 0 && temp->m_bIsValid){
 			//spin unlock, so add is valid
-			temp->expire += temp->m_nRepeatTime;
+			temp->m_expire += temp->m_nRepeatTime;
 
             std::unique_lock<std::mutex> lock(m_lock);
 			add_node(temp);
 		}
 		else{
-			free(temp);
+            timer_del(temp->m_nKey);
+			delete temp;
 		}
 	} while (current);
 }
 
-void OnTimer::timer_add(timer_event& event, int time, int bRepeat){
-	int sz = sizeof(event);
-	struct timer_node *node = (struct timer_node *)malloc(sizeof(*node) + sz);
-	memcpy(node + 1, &event, sz);
-	node->m_bIsValid = 1;
-	node->m_nRepeatTime = bRepeat > 0 ? time : 0;
+intptr_t OnTimer::timer_add(const std::function<void(intptr_t)>& func, int32_t time, int bRepeat){
+	timer_node* pNode = new timer_node();
+    pNode->m_callback = func;
+    pNode->m_nKey = (intptr_t)pNode;
+    pNode->m_bIsValid = 1;
+    pNode->m_nRepeatTime = bRepeat > 0 ? time : 0;
     std::unique_lock<std::mutex> lock(m_lock);
-	node->expire = time + m_time;
+    pNode->m_expire = time + m_time;
 	if (bRepeat > 0){
-		(*m_pMapNode)[event.m_nKey] = node;
+        m_mapNode[pNode->m_nKey] = pNode;
 	}
-	add_node(node);
+	add_node(pNode);
+    return pNode->m_nKey;
 }
 
 void OnTimer::timer_del(intptr_t nKey){
     std::unique_lock<std::mutex> lock(m_lock);
-	MapTimerNode::iterator iter = (*m_pMapNode).find(nKey);
-	if (iter != (*m_pMapNode).end()){
+	auto iter = m_mapNode.find(nKey);
+	if (iter != m_mapNode.end()){
 		timer_node* pNode = iter->second;
 		pNode->m_bIsValid = 0;
-		(*m_pMapNode).erase(iter);
+        m_mapNode.erase(iter);
 	}
 }
 
 void OnTimer::add_node(timer_node *node){
-	uint32_t time = node->expire;
+	uint32_t time = node->m_expire;
 	uint32_t current_time = m_time;
 
 	if ((time | TIME_NEAR_MASK) == (current_time | TIME_NEAR_MASK)){
@@ -173,9 +167,9 @@ void OnTimer::add_node(timer_node *node){
 }
 
 void OnTimer::linklist(link_list *list, timer_node *node){
-	list->tail->next = node;
-	list->tail = node;
-	node->next = 0;
+	list->m_tail->m_next = node;
+	list->m_tail = node;
+	node->m_next = 0;
 }
 
 bool OnTimer::InitTimer(){
@@ -190,45 +184,50 @@ bool OnTimer::InitTimer(){
 			link_clear(&m_t[i][j]);
 		}
 	}
-	m_current_point = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count() / 10;
+	m_current_point = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() / m_dura.count();
 
     m_thread_worker_ptr = std::make_shared<std::thread>(&OnTimer::TimerRun, this);
 	return true;
 }
 
-void OnTimer::WaitThreadExit(){
+void OnTimer::CloseTimer(){
+	m_bTimerExit = true;
     if (m_thread_worker_ptr != nullptr)
         m_thread_worker_ptr->join();
 }
 
-void OnTimer::CloseTimer(){
-	m_bTimerExit = true;
-}
-
-bool OnTimer::AddTimeOut(intptr_t nKey, pOnTimerCallback pFunc, int nTimes, intptr_t pParam1){
+intptr_t OnTimer::AddTimeOut(const std::function<void(intptr_t)>& func, int32_t nTimes){
 	if (nTimes <= 0){
-		pFunc(nKey, pParam1);
+        func(0);
+        return 0;
 	}
-	else{
-		struct timer_event event;
-		event.m_callbackFunc = pFunc;
-		event.m_nKey = nKey;
-		event.m_pParam1 = pParam1;
-		timer_add(event, nTimes, 0);
-	}
-	return true;
+    nTimes /= (int32_t)m_dura.count();
+    if (nTimes == 0)
+        nTimes = 1;
+    return timer_add(func, nTimes, 0);
 }
 
-bool OnTimer::AddOnTimer(intptr_t nKey, pOnTimerCallback pFunc, int nTimes, intptr_t pParam1) {
+intptr_t OnTimer::AddOnTimer(const std::function<void(intptr_t)>& func, int32_t nTimes) {
 	if (nTimes > 0) {
-		struct timer_event event;
-		event.m_callbackFunc = pFunc;
-		event.m_nKey = nKey;
-		event.m_pParam1 = pParam1;
-		timer_add(event, nTimes, 1);
-		return true;
+        nTimes /= (int32_t)m_dura.count();
+        if (nTimes == 0)
+            nTimes = 1;
+		return timer_add(func, nTimes, 1);
 	}
-	return false;
+	return 0;
+}
+
+bool OnTimer::AddOnTimerUtil(const std::function<bool()>& func, int32_t nTimes) {
+    if (nTimes <= 0)
+        return false;
+    if (func())
+        return true;
+    intptr_t nKey = AddOnTimer([this, &func](intptr_t nKey) {
+        if (func()) {
+            DelTimer(nKey);
+        }
+    }, nTimes);
+    return nKey != 0;
 }
 
 void OnTimer::DelTimer(intptr_t nKey){
@@ -236,9 +235,9 @@ void OnTimer::DelTimer(intptr_t nKey){
 }
 
 timer_node* OnTimer::link_clear(link_list *list){
-	timer_node * ret = list->head.next;
-	list->head.next = 0;
-	list->tail = &(list->head);
+	timer_node * ret = list->m_head.m_next;
+	list->m_head.m_next = 0;
+	list->m_tail = &(list->m_head);
 
 	return ret;
 }

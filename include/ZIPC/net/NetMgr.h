@@ -6,7 +6,6 @@
 #pragma once
 
 #include "ZIPC/base/inc/IPCDefine.h"
-#include "ZIPC/base/mt/SpinLock.h"
 
 __NS_ZILLIZ_IPC_START
 /////////////////////////////////////////////////////////////////////////////
@@ -27,19 +26,13 @@ public:
     void CloseNetSocket();
 public:
     NetThread* AssignNetThread();
-
-    //! calc net threadindex
-    uint16_t ReCalcNetThreadIndex();
 protected:
-    volatile bool                               m_bTimeToKill = false;
-
     std::shared_ptr<std::thread>                m_thread_ontimer_ptr;
 
     uint16_t 			                        m_nEventThreadCount = 1;
     NetThread*                                  m_pEventThreads = nullptr;
 
     //! 获取当前的线程
-    volatile uint16_t                           m_nCurrentNetThreadIndex = 0;
     std::atomic<uint16_t>                       m_nNetThreadIndexGetCount = { 0 };
 };
 

@@ -1,8 +1,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <thread>
-#include "base/mem/SmartBufferTest.h"
 #include "base/log/IPCLogTest.h"
+#include "base/time/OnTimerTest.h"
 
 //func call is success
 #define PrintSuccessOrFail(Func)\
@@ -26,9 +26,8 @@
 }
 
 int main(){
-
-	PrintSuccessOrFail(SmartBufferTest);
 	PrintSuccessOrFail(IPCLogTest);
+    PrintSuccessOrFail(IPCOnTimerTest);
 	printf("End Test IPC\n");
 	getchar();
 	return 0;

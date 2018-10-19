@@ -60,7 +60,6 @@ void NetMgr::Initialize(){
 
 void NetMgr::CloseNetSocket(){
     LogFuncInfo(IPCLog_Info, "Start NetMgr CLose");
-    m_bTimeToKill = true;
     if(m_thread_ontimer_ptr != nullptr)
         m_thread_ontimer_ptr->join();
 
@@ -75,24 +74,8 @@ void NetMgr::CloseNetSocket(){
 }
 ////////////////////////////////////////////////////////////////////////////////////////
 NetThread* NetMgr::AssignNetThread() {
-    uint16_t nValue = m_nNetThreadIndexGetCount.fetch_add(1, std::memory_order_acquire);
-    return nValue < 100 ? &m_pEventThreads[m_nCurrentNetThreadIndex] : &m_pEventThreads[ReCalcNetThreadIndex()];
-}
-
-//! calc net threadindex
-uint16_t NetMgr::ReCalcNetThreadIndex() {
-    uint16_t nIndex = 0;
-    uint32_t nMin = m_pEventThreads[0].GetWeight();
-    for (uint16_t i = 1; i < m_nEventThreadCount;i++) {
-        uint32_t nWeight = m_pEventThreads[i].GetWeight();
-        if (nMin > nWeight) {
-            nIndex = i;
-            nMin = nWeight;
-        }
-    }
-    m_nCurrentNetThreadIndex = nIndex;
-    m_nNetThreadIndexGetCount.store(0, std::memory_order_release);
-    return nIndex;
+    uint16_t nValue = m_nNetThreadIndexGetCount.fetch_add(1);
+    return &m_pEventThreads[nValue % m_nEventThreadCount];
 }
 ////////////////////////////////////////////////////////////////////////////////////////
 __NS_ZILLIZ_IPC_END
