@@ -212,7 +212,7 @@ int main(){
             zilliz::lib::BitStream sendBuffer;
             sendBuffer.SetDataLength(1024 * 1024 * 400);
             sendBuffer.SetDataLength(0);
-            for (uint32_t i = 0; i < 1024; i++) {
+            for (uint32_t i = 0; i < 512; i++) {
                 sendBuffer << i;
             }
             for (int j = 0; j < 2; j++) {
