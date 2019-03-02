@@ -172,9 +172,9 @@ int main() {
         //构建发送的buffer
         {
             zilliz::lib::BitStream sendBuffer;
-            sendBuffer.SetDataLength(1024 * 1024 * 800);
+            sendBuffer.SetDataLength(1024 * 1024 * 400);
             sendBuffer.SetDataLength(0);
-            for (uint32_t i = 0; i < 200; i++) {
+            for (uint32_t i = 0; i < 100; i++) {
                 sendBuffer << i;
             }
             for (int j = 0; j < 2; j++) {
